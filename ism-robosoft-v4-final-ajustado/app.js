@@ -93,8 +93,7 @@ const state = {
     { id: 3, user: 'María López', role: 'Docente', card: 'RFID-2001', category: 'Docente', room: 'Sala Informática', entry: '2026-04-15 07:40', exit: '-', inside: true }
   ],
   currentCourseScreen: 'list',
-  selectedStudentCourse: null,
-  courseContentTab: 'lesson'
+  selectedStudentCourse: null
 };
 
 const roleViews = {
@@ -218,9 +217,7 @@ function statusPill(status) {
   const map = {
     'Activo': 'status-approved', 'Pendiente': 'status-pending', 'Disponible': 'status-approved',
     'Prestado': 'status-pending', 'En mantenimiento': 'status-rejected', 'Publicado': 'status-approved',
-    'Borrador': 'status-pending', 'Inscripto': 'status-approved', 'Disponible con código': 'status-pending',
-    'Aprobado': 'status-approved', 'Rechazado': 'status-rejected', 'Devuelto': 'status-info',
-    'Dentro': 'status-approved', 'Fuera': 'status-rejected'
+    'Borrador': 'status-pending', 'Inscripto': 'status-approved', 'Disponible con código': 'status-pending'
   };
   return `<span class="status-pill ${map[status] || 'status-pending'}">${status}</span>`;
 }
@@ -452,72 +449,6 @@ function renderInventory() {
     </section>`;
 }
 
-function getStudentCourseItems(course) {
-  return [
-    { key: 'lesson', group: 'MASTER CLASS EN VIVO', title: 'Clase 01 – Bienvenida & Mentalidad del laboratorio', meta: '76 minutos', icon: '📘' },
-    { key: 'task', group: 'CLASES GRABADAS', title: 'Tarea 01 – Calendario Económico', meta: '7 días', icon: '📝' },
-    { key: 'quiz', group: 'CLASES GRABADAS', title: 'Evaluativo 01 – Herramientas del laboratorio', meta: '10 preguntas · 20 minutos', icon: '✅' }
-  ];
-}
-
-function renderStudentCourseContent(course, tab = 'lesson') {
-  if (tab === 'task') return `
-    <div class="course-content-rich">
-      <div class="course-meta-strip">Hora de finalización estimada: 21 de abril de 2026 · 18:13</div>
-      <h2>Tarea 01 – Calendario Económico</h2>
-      <div class="course-summary-list"><span><strong>Duración:</strong> 7 días</span><span><strong>Total grade:</strong> 10 puntos</span><span><strong>Calificación aprobatoria:</strong> 7 puntos</span><span><strong>Reintentos:</strong> 3</span></div>
-      <div class="lp-block">
-        <h3>📋 Instrucciones</h3>
-        <ol>
-          <li>Ingresá a una plataforma con calendario económico y detectá noticias de alto impacto.</li>
-          <li>Elegí un activo fuerte y uno débil, explicando su tendencia.</li>
-          <li>Redactá una breve conclusión con tu decisión como estudiante.</li>
-        </ol>
-      </div>
-      <div class="lp-block">
-        <h3>🧾 Se requiere entrega</h3>
-        <ul>
-          <li>Capturas del calendario económico.</li>
-          <li>Mapa de calor o análisis del mercado.</li>
-          <li>Documento o texto explicativo.</li>
-        </ul>
-      </div>
-      <div class="lp-answer-box">
-        <label><span>Escriba su respuesta</span><textarea rows="7" placeholder="Desarrollá tu análisis aquí..."></textarea></label>
-        <div class="toolbar"><button class="btn btn-primary btn-sm">Guardar respuesta</button><button class="btn btn-secondary btn-sm">Adjuntar archivo</button></div>
-      </div>
-    </div>`;
-  if (tab === 'quiz') return `
-    <div class="course-content-rich">
-      <div class="course-meta-strip">Pregunta 1 de 10 · Tiempo estimado 20 minutos</div>
-      <h2>Evaluativo 01 – Herramientas del laboratorio</h2>
-      <div class="quiz-panel">
-        <p class="quiz-question">¿Cuál es el objetivo principal del calendario económico?</p>
-        <button class="quiz-option" data-quiz-option="a"><span class="quiz-radio"></span><span>a) Analizar gráficos técnicos</span></button>
-        <button class="quiz-option selected correct" data-quiz-option="b"><span class="quiz-radio"></span><span>b) Identificar eventos que impactan el mercado</span></button>
-        <button class="quiz-option" data-quiz-option="c"><span class="quiz-radio"></span><span>c) Ejecutar operaciones automáticamente</span></button>
-        <button class="quiz-option" data-quiz-option="d"><span class="quiz-radio"></span><span>d) Crear estrategias de trading</span></button>
-        <div class="quiz-feedback success">✔ Correcto. El calendario económico muestra eventos clave que pueden generar movimientos en el mercado.</div>
-        <div class="toolbar"><button class="btn btn-secondary btn-sm">Pregunta anterior</button><button class="btn btn-primary btn-sm">Siguiente</button></div>
-      </div>
-    </div>`;
-  return `
-    <div class="course-content-rich">
-      <div class="course-meta-strip">MASTER CLASS – ${course.title} · 2 de 37 elementos</div>
-      <h2>Clase 01 – Bienvenida & Mentalidad del laboratorio</h2>
-      <p>En esta primera clase damos inicio al curso <strong>${course.title}</strong>. Vas a encontrar objetivos, video, archivos adjuntos y navegación secuencial, siguiendo un formato similar al aula virtual que compartiste.</p>
-      <div class="lesson-video-card">
-        <div class="lesson-video-thumb">
-          <div class="video-overlay-title">Clase 01: Bienvenida y Mentalidad</div>
-          <div class="play-button">▶</div>
-        </div>
-        <div class="lesson-video-actions"><button class="btn btn-secondary btn-sm">Descargar PDF</button><button class="btn btn-primary btn-sm">Completar</button></div>
-      </div>
-      <table class="table lesson-files-table"><thead><tr><th>Nombre</th><th>Tipo</th><th>Tamaño</th><th>Descarga</th></tr></thead><tbody><tr><td>Clase 01 - Bienvenida y Mentalidad del laboratorio</td><td>pdf</td><td>265 KB</td><td>${icons.export}</td></tr></tbody></table>
-      <div class="lesson-nav"><button class="btn btn-secondary btn-sm">◀ Anterior</button><button class="btn btn-secondary btn-sm">Siguiente ▶</button></div>
-    </div>`;
-}
-
 function renderTeacherCampus() {
   const rows = currentTeacherModules();
   return `<section class="card glass"><div class="section-header"><div><h3>Gestión de cursos</h3><p class="muted">Creación de cursos, visibilidad, códigos de acceso y contenido tipo e-learning.</p></div><div class="toolbar"><button class="btn btn-secondary btn-sm" data-import="courses">${icons.import} Importar CSV</button><button class="btn btn-secondary btn-sm" data-export="courses">${icons.export} Exportar CSV</button><button class="btn btn-secondary btn-sm" id="addModuleBtn">${icons.courses} Agregar módulo</button><button class="btn btn-primary btn-sm" id="newCourseBtn">Nuevo curso</button></div></div><div class="toolbar filters-row"><input type="search" placeholder="Buscar por nombre, código o detalle"><select><option>Todos los estados</option></select><select><option>Todos los tipos</option></select><button class="btn btn-secondary btn-sm" id="courseChartsBtn">${icons.chart} Ver gráficos</button></div><div class="grid-cards">${rows.map(mod => `<article class="card glass-soft"><div class="metric-inline"><h3>${mod.title}</h3>${statusPill(mod.status)}</div><p><strong>Docente:</strong> ${mod.teacher}</p><p><strong>Visibilidad:</strong> ${mod.visibility}</p><p><strong>Código:</strong> ${mod.code}</p><p><strong>Clave:</strong> ${mod.accessKey}</p><p><strong>Equipo/alcance:</strong> ${mod.team}</p><div class="course-metrics"><span>${mod.lessons} lecciones</span><span>${mod.tasks} tareas</span><span>${mod.evaluations} evaluativos</span></div><div class="toolbar"><button class="btn btn-secondary btn-sm" data-preview-form="course">${icons.eye} Ver formulario</button><button class="btn btn-secondary btn-sm" data-preview-form="lesson">Agregar lección</button><button class="btn btn-secondary btn-sm" data-preview-form="task">Agregar tarea</button><button class="btn btn-secondary btn-sm" data-preview-form="quiz">Agregar evaluativo</button></div></article>`).join('')}</div><div class="layout-two" style="margin-top:18px"><article class="card glass-soft"><h3>Cómo carga contenido el docente</h3><div class="flow-steps"><div class="flow-step"><strong>1. Crear curso</strong><span>Nombre, descripción, código automático, clave, visibilidad y equipos.</span></div><div class="flow-step"><strong>2. Agregar módulos</strong><span>Organizá el contenido por unidades temáticas.</span></div><div class="flow-step"><strong>3. Cargar lecciones</strong><span>Texto, video, archivos y enlaces.</span></div><div class="flow-step"><strong>4. Tareas y evaluativos</strong><span>Consignas, puntaje, intentos y feedback.</span></div></div></article><article class="card glass-soft"><h3>Vistas previas disponibles</h3><div class="list-simple"><button class="btn btn-secondary btn-sm full-width" data-preview-form="course">Ver formulario de curso</button><button class="btn btn-secondary btn-sm full-width" data-preview-form="module">Ver formulario de módulo</button><button class="btn btn-secondary btn-sm full-width" data-preview-form="lesson">Ver formulario de lección</button><button class="btn btn-secondary btn-sm full-width" data-preview-form="task">Ver formulario de tarea</button><button class="btn btn-secondary btn-sm full-width" data-preview-form="quiz">Ver formulario de evaluativo</button></div></article></div></section>`;
@@ -528,56 +459,30 @@ function renderStudentCampus() {
   const openCourses = state.studentCourses.filter(c => c.access !== 'Incripto');
   if (state.currentCourseScreen === 'detail' && state.selectedStudentCourse) {
     const course = state.selectedStudentCourse;
-    const items = getStudentCourseItems(course);
-    const groups = [...new Set(items.map(i => i.group))];
     return `
-      <section class="learnpress-shell">
-        <aside class="learnpress-sidebar card glass">
-          <div class="learnpress-search"><input type="search" placeholder="Buscar contenido de cursos"></div>
-          ${groups.map(group => `
-            <div class="lp-group">
-              <div class="lp-group-head"><strong>${group}</strong><span>${items.filter(i => i.group === group).length}</span></div>
-              <div class="lp-items">
-                ${items.filter(i => i.group === group).map(item => `
-                  <button class="lp-item ${state.courseContentTab === item.key ? 'active' : ''}" data-course-tab="${item.key}">
-                    <div class="lp-item-main"><strong>${item.icon} ${item.title}</strong><span>${item.meta}</span></div>
-                    <span class="lp-item-check">✓</span>
-                  </button>`).join('')}
-              </div>
-            </div>`).join('')}
-        </aside>
-        <article class="learnpress-content card glass">
-          <div class="learnpress-topbar"><span>MASTER CLASS – ${course.title}</span><span>2 de 37 elementos</span></div>
-          ${renderStudentCourseContent(course, state.courseContentTab)}
-          <div class="toolbar" style="justify-content:flex-end"><button class="btn btn-secondary btn-sm" id="backCampusBtn">Volver al campus</button></div>
-        </article>
+      <section class="layout-two">
+        <aside class="card glass"><h3>${course.title}</h3><div class="list-simple"><button class="notification-row course-select-tab" data-course-tab="lesson"><div><strong>📘 Clase 01 – Bienvenida</strong><span>Video y material</span></div></button><button class="notification-row course-select-tab" data-course-tab="task"><div><strong>📝 Tarea 01 – Calendario Económico</strong><span>Consigna y entrega</span></div></button><button class="notification-row course-select-tab" data-course-tab="quiz"><div><strong>✅ Evaluativo 01 – Herramientas del laboratorio</strong><span>Selección visible y feedback</span></div></button></div></aside>
+        <article class="card glass"><div class="section-header"><div><h3 id="courseContentTitle">Clase 01 – Bienvenida</h3><p class="muted">Vista previa del aula virtual del alumno</p></div><button class="btn btn-secondary btn-sm" id="backCampusBtn">Volver</button></div><div id="courseContentBody" class="list-simple"><div class="list-item"><strong>Video de clase</strong><span>Contenido, archivos adjuntos y botón completar.</span></div></div></article>
       </section>`;
   }
   return `
-    <section class="card glass">
-      <div class="section-header"><div><h3>Mis cursos</h3><p class="muted">Tus cursos activos con vista previa tipo aula virtual.</p></div><button class="btn btn-primary btn-sm" id="joinCourseBtn">Sumarme a un curso</button></div>
-      <div class="student-course-grid">
-        ${enrolled.map(course => `
-          <article class="student-course-card glass-soft">
-            <div class="student-course-cover"><div class="student-course-cover-overlay"><span class="cover-badge">${course.team}</span><h3>${course.title}</h3><small>${course.teacher}</small></div></div>
-            <div class="student-course-body">
-              <div class="course-metrics"><span>${course.lessons} módulos/lecciones</span><span>${course.tasks} tareas</span><span>${course.evaluations} evaluativos</span></div>
-              <div class="student-progress"><div class="student-progress-bar"><span style="width:${course.progress}%"></span></div><strong>Progreso ${course.progress}%</strong></div>
-              <div class="toolbar" style="justify-content:flex-end"><button class="btn btn-secondary btn-sm" data-open-student-course="${course.title}">${icons.eye} Ver curso</button></div>
-            </div>
-          </article>`).join('')}
-      </div>
-    </section>
     <section class="layout-two">
       <article class="card glass">
-        <h3>Cursos abiertos</h3>
-        <div class="grid-cards">${openCourses.map(course => `<article class="card glass-soft"><div class="metric-inline"><h3>${course.title}</h3>${statusPill('Disponible con código')}</div><p><strong>Docente:</strong> ${course.teacher}</p><p><strong>Visibilidad:</strong> ${course.visibility}</p><div class="course-metrics"><span>${course.lessons} lecciones</span><span>${course.tasks} tareas</span><span>${course.evaluations} evaluativos</span></div></article>`).join('')}</div>
+        <div class="section-header"><div><h3>Mis cursos inscriptos</h3><p class="muted">Cursos a los que te agregó el docente o a los que ya accediste con código.</p></div><button class="btn btn-primary btn-sm" id="joinCourseBtn">Sumarme a un curso</button></div>
+        <div class="grid-cards">
+          ${enrolled.map(course => `<article class="card glass-soft"><div class="metric-inline"><h3>${course.title}</h3>${statusPill('Inscripto')}</div><p><strong>Docente:</strong> ${course.teacher}</p><p><strong>Equipo:</strong> ${course.team}</p><div class="course-metrics"><span>${course.lessons} módulos/lecciones</span><span>${course.tasks} tareas</span><span>${course.evaluations} evaluativos</span></div><p><strong>Progreso:</strong> ${course.progress}%</p><div class="toolbar" style="justify-content:flex-end"><button class="btn btn-secondary btn-sm" data-open-student-course="${course.title}">${icons.eye} Ver curso</button></div></article>`).join('')}
+        </div>
       </article>
       <aside class="card glass">
-        <h3>Cómo acceder</h3>
-        <div class="flow-steps"><div class="flow-step"><strong>Código del curso</strong><span>Se genera automáticamente cuando el docente crea el curso.</span></div><div class="flow-step"><strong>Clave de acceso</strong><span>La define el docente para cursos restringidos.</span></div><div class="flow-step"><strong>Visibilidad</strong><span>Puede ser abierta o limitada a equipos.</span></div></div>
+        <h3>Cómo acceder a un curso</h3>
+        <div class="list-simple">
+          <div class="list-item"><strong>1. Código del curso</strong><span>El docente lo genera automáticamente al crear el curso.</span></div>
+          <div class="list-item"><strong>2. Clave de acceso</strong><span>La define el docente si quiere restringir el acceso.</span></div>
+          <div class="list-item"><strong>3. Visibilidad</strong><span>Puede ser abierta para todos o sólo para equipos específicos.</span></div>
+        </div>
       </aside>
-    </section>`;
+    </section>
+    <section class="card glass"><div class="section-header"><div><h3>Cursos disponibles</h3><p class="muted">Cursos visibles para todos a los que podés suscribirte con código y clave.</p></div></div><div class="grid-cards">${openCourses.map(course => `<article class="card glass-soft"><div class="metric-inline"><h3>${course.title}</h3>${statusPill('Disponible con código')}</div><p><strong>Docente:</strong> ${course.teacher}</p><p><strong>Visibilidad:</strong> ${course.visibility}</p><div class="course-metrics"><span>${course.lessons} lecciones</span><span>${course.tasks} tareas</span><span>${course.evaluations} evaluativos</span></div></article>`).join('')}</div></section>`;
 }
 
 function renderCourses() {
@@ -586,7 +491,7 @@ function renderCourses() {
 }
 
 function renderLibrary() {
-  return `<section class="card glass"><div class="section-header"><div><h3>Biblioteca digital</h3><p class="muted">Repositorio de documentos, videos, PDFs, TXT, ZIP y links externos como GitHub o Drive.</p></div><div class="toolbar"><button class="btn btn-primary btn-sm" id="newResourceBtn">Nuevo recurso</button><button class="btn btn-secondary btn-sm" data-import="library">${icons.import} Importar CSV</button><button class="btn btn-secondary btn-sm" data-export="library">${icons.export} Exportar CSV</button><button class="btn btn-secondary btn-sm" id="libraryChartsBtn">${icons.chart} Ver gráficos</button></div></div><div class="toolbar filters-row"><input type="search" placeholder="Buscar por nombre, código o detalle"><select><option>Todos los tipos</option><option>PDF</option><option>Video</option><option>Documento</option><option>TXT</option><option>ZIP</option><option>GitHub</option></select><button class="btn btn-secondary btn-sm" id="resourceCategoryBtn">${icons.filter} Categorías</button></div><div class="file-grid">${state.library.map(file => `<article class="file-item glass-soft"><strong>${file.title}</strong><p>${file.area}</p><span class="tag">${file.type}</span><div class="toolbar" style="margin-top:8px"><button class="btn btn-secondary btn-sm" data-view-resource="${file.id}">${icons.eye} Ver</button></div></article>`).join('')}</div><article class="card glass-soft" style="margin-top:16px"><h3>Cómo agregar recursos</h3><div class="flow-steps"><div class="flow-step"><strong>1. Nuevo recurso</strong><span>Elegí tipo: PDF, Video, Documento, TXT, ZIP, Link o Repositorio GitHub.</span></div><div class="flow-step"><strong>2. Datos</strong><span>Completá título, categoría, descripción y archivo/URL.</span></div><div class="flow-step"><strong>3. Publicación</strong><span>Guardá y el recurso queda visible en la grilla.</span></div></div></article></section>`;
+  return `<section class="card glass"><div class="section-header"><div><h3>Biblioteca digital</h3><p class="muted">Repositorio de documentos, videos, PDFs, TXT, ZIP y links externos como GitHub o Drive.</p></div><div class="toolbar"><button class="btn btn-primary btn-sm" id="newResourceBtn">Nuevo recurso</button><button class="btn btn-secondary btn-sm" data-import="library">${icons.import} Importar CSV</button><button class="btn btn-secondary btn-sm" data-export="library">${icons.export} Exportar CSV</button><button class="btn btn-secondary btn-sm" id="libraryChartsBtn">${icons.chart} Ver gráficos</button></div></div><div class="toolbar filters-row"><input type="search" placeholder="Buscar por nombre, código o detalle"><select><option>Todos los tipos</option><option>PDF</option><option>Video</option><option>Documento</option><option>TXT</option><option>ZIP</option><option>GitHub</option></select><button class="btn btn-secondary btn-sm" id="resourceCategoryBtn">${icons.filter} Categorías</button></div><div class="file-grid">${state.library.map(file => `<article class="file-item glass-soft"><strong>${file.title}</strong><p>${file.area}</p><span class="tag">${file.type}</span><div class="toolbar" style="margin-top:8px"><button class="btn btn-secondary btn-sm" data-preview-form="resource">${icons.eye} Ver formulario</button></div></article>`).join('')}</div><article class="card glass-soft" style="margin-top:16px"><h3>Cómo agregar recursos</h3><div class="flow-steps"><div class="flow-step"><strong>1. Nuevo recurso</strong><span>Elegí tipo: PDF, Video, Documento, TXT, ZIP, Link o Repositorio GitHub.</span></div><div class="flow-step"><strong>2. Datos</strong><span>Completá título, categoría, descripción y archivo/URL.</span></div><div class="flow-step"><strong>3. Publicación</strong><span>Guardá y el recurso queda visible en la grilla.</span></div></div></article></section>`;
 }
 
 function renderNotifications() {
@@ -857,10 +762,14 @@ function attachViewEvents() {
   appContent.querySelectorAll('[data-export]').forEach(btn => btn.addEventListener('click', () => triggerDownload(`${btn.dataset.export}.csv`, csvFromRows(dataByModule(btn.dataset.export)))));
   appContent.querySelectorAll('[data-create]').forEach(btn => btn.addEventListener('click', () => openFormPreview(btn.dataset.create === 'module' ? 'course' : btn.dataset.create)));
   appContent.querySelectorAll('[data-preview-form]').forEach(btn => btn.addEventListener('click', () => openFormPreview(btn.dataset.previewForm)));
-  appContent.querySelectorAll('[data-view-resource]').forEach(btn => btn.addEventListener('click', () => openResourceViewer(btn.dataset.viewResource)));
-  appContent.querySelectorAll('[data-open-student-course]').forEach(btn => btn.addEventListener('click', () => { state.selectedStudentCourse = state.studentCourses.find(c => c.title === btn.dataset.openStudentCourse); state.currentCourseScreen = 'detail'; state.courseContentTab = 'lesson'; renderView(); }));
-  appContent.querySelectorAll('.course-select-tab').forEach(btn => btn.addEventListener('click', () => { state.courseContentTab = btn.dataset.courseTab; renderView(); }));
-  document.getElementById('backCampusBtn')?.addEventListener('click', () => { state.currentCourseScreen = 'list'; state.selectedStudentCourse = null; state.courseContentTab = 'lesson'; renderView(); });
+  appContent.querySelectorAll('[data-open-student-course]').forEach(btn => btn.addEventListener('click', () => { state.selectedStudentCourse = state.studentCourses.find(c => c.title === btn.dataset.openStudentCourse); state.currentCourseScreen = 'detail'; renderView(); }));
+  appContent.querySelectorAll('.course-select-tab').forEach(btn => btn.addEventListener('click', () => {
+    const title = document.getElementById('courseContentTitle'); const body = document.getElementById('courseContentBody'); if(!title||!body) return; const tab = btn.dataset.courseTab;
+    if (tab === 'lesson') { title.textContent = 'Clase 01 – Bienvenida'; body.innerHTML = '<div class="list-item"><strong>Video de clase</strong><span>Contenido, archivos adjuntos y botón completar.</span></div>'; }
+    if (tab === 'task') { title.textContent = 'Tarea 01 – Calendario Económico'; body.innerHTML = '<div class="list-item"><strong>Instrucciones</strong><span>Capturas, análisis y entrega.</span></div><button class="btn btn-primary btn-sm">Entregar tarea</button>'; }
+    if (tab === 'quiz') { title.textContent = 'Evaluativo 01 – Herramientas del laboratorio'; body.innerHTML = '<div class="list-simple"><button class="notification-row"><div><strong>a) Analizar gráficos técnicos</strong></div></button><button class="notification-row unread" style="border-color:rgba(30,201,141,.45);background:rgba(30,201,141,.08)"><div><strong>b) Identificar eventos que impactan el mercado</strong><span>Seleccionada</span></div></button><button class="btn btn-secondary btn-sm">Revisar respuestas</button></div>'; }
+  }));
+  document.getElementById('backCampusBtn')?.addEventListener('click', () => { state.currentCourseScreen = 'list'; state.selectedStudentCourse = null; renderView(); });
   document.getElementById('newCourseBtn')?.addEventListener('click', () => openFormPreview('course'));
   document.getElementById('addModuleBtn')?.addEventListener('click', () => openFormPreview('module'));
   document.getElementById('newResourceBtn')?.addEventListener('click', () => openFormPreview('resource'));
