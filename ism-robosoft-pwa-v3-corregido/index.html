@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0b1220" />
+  <title>ISM Robosoft | Acceso</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="./assets/logo.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body class="auth-page">
+  <main class="login-shell">
+    <section class="auth-side glass">
+      <div class="auth-brand-block">
+        <img src="./assets/img/logo-Coordinacion-Robotica.png" alt="Instituto San Miguel" class="brand-logo large" />
+        <div>
+          <span class="badge">PWA + Supabase + GitHub Pages</span>
+          <h1>ISM Robosoft</h1>
+          <p>Gestión integral del Laboratorio de Robótica del Instituto San Miguel.</p>
+        </div>
+      </div>
+      <div class="auth-feature-list">
+        <article class="feature-card"><strong>Administrador</strong><span>Dashboard, usuarios, permisos, equipos mixtos, inventario y reportes.</span></article>
+        <article class="feature-card"><strong>Docente</strong><span>Campus docente, módulos, tareas, evaluativos y gestión de equipos asignados.</span></article>
+        <article class="feature-card"><strong>Alumno</strong><span>Mi equipo, actividades, biblioteca digital y seguimiento de materiales.</span></article>
+      </div>
+    </section>
+
+    <section class="auth-card glass">
+      <span class="badge">Acceso seguro</span>
+      <h2>Ingresar al panel</h2>
+      <p class="muted">Podés usar usuario o correo. En modo demo no hace falta configurar Supabase.</p>
+
+      <form id="loginForm" class="form-grid single-col">
+        <label>
+          <span>Usuario o correo electrónico</span>
+          <input type="text" id="email" placeholder="admin o admin@ism.edu.ar" required />
+        </label>
+        <label>
+          <span>Contraseña</span>
+          <input type="password" id="password" placeholder="••••••••" required />
+        </label>
+        <button class="btn btn-primary" type="submit">Ingresar</button>
+      </form>
+
+      <div class="auth-footer-note">
+        <p><strong>Accesos demo:</strong></p>
+        <div class="demo-grid">
+          <button id="demoAdminBtn" class="btn btn-secondary" type="button">Demo Admin</button>
+          <button id="demoTeacherBtn" class="btn btn-secondary" type="button">Demo Docente</button>
+          <button id="demoStudentBtn" class="btn btn-secondary" type="button">Demo Alumno</button>
+        </div>
+        <div class="demo-credentials">
+          <span><strong>Administrador:</strong> admin / admin123</span>
+          <span><strong>Docente:</strong> docente / docente123</span>
+          <span><strong>Alumno:</strong> alumno / alumno123</span>
+        </div>
+      </div>
+
+      <p id="authMessage" class="form-message"></p>
+    </section>
+  </main>
+
+  <footer class="site-footer auth-footer">
+    <p>ISM ROBOSOFT© 2026</p>
+    <p>by Ing. Fernando Gambino &amp; C.P. - Todos los Derechos Registrados.</p>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./config.example.js"></script>
+  <script src="./supabase.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(console.error));
+    }
+  </script>
+  <script src="./auth.js"></script>
+</body>
+</html>
