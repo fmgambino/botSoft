@@ -1,3 +1,7 @@
+# Versión conectada a Supabase
+
+Leer primero: `README_CONEXION_SUPABASE.md`.
+
 # ISM Robosoft PWA
 
 PWA responsive para la gestión administrativa del Laboratorio de Robótica del Instituto San Miguel.

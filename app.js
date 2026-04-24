@@ -855,7 +855,11 @@ function attachViewEvents() {
   appContent.querySelectorAll('.notification-select').forEach(btn => btn.addEventListener('click', () => selectNotification(btn.dataset.id)));
   appContent.querySelectorAll('[data-import]').forEach(btn => btn.addEventListener('click', () => openImport(btn.dataset.import)));
   appContent.querySelectorAll('[data-export]').forEach(btn => btn.addEventListener('click', () => triggerDownload(`${btn.dataset.export}.csv`, csvFromRows(dataByModule(btn.dataset.export)))));
-  appContent.querySelectorAll('[data-create]').forEach(btn => btn.addEventListener('click', () => openFormPreview(btn.dataset.create === 'module' ? 'course' : btn.dataset.create)));
+  appContent.querySelectorAll('[data-create]').forEach(btn => btn.addEventListener('click', () => {
+    if (btn.dataset.create === 'user') return openUserProfileForm();
+    if (btn.dataset.create === 'inventory') return openInventoryAssetForm();
+    return openFormPreview(btn.dataset.create === 'module' ? 'course' : btn.dataset.create);
+  }));
   appContent.querySelectorAll('[data-preview-form]').forEach(btn => btn.addEventListener('click', () => openFormPreview(btn.dataset.previewForm)));
   appContent.querySelectorAll('[data-view-resource]').forEach(btn => btn.addEventListener('click', () => openResourceViewer(btn.dataset.viewResource)));
   appContent.querySelectorAll('[data-open-student-course]').forEach(btn => btn.addEventListener('click', () => { state.selectedStudentCourse = state.studentCourses.find(c => c.title === btn.dataset.openStudentCourse); state.currentCourseScreen = 'detail'; state.courseContentTab = 'lesson'; renderView(); }));
@@ -880,7 +884,7 @@ function attachViewEvents() {
   document.getElementById('inventoryStateFilter')?.addEventListener('change', e => { state.filters.inventoryState = e.target.value; renderView(); });
   document.getElementById('inventoryTypeFilter')?.addEventListener('change', e => { state.filters.inventoryType = e.target.value; renderView(); });
   document.getElementById('generateBarcodeBtn')?.addEventListener('click', generateBarcode);
-  document.getElementById('newInventoryItemBtn')?.addEventListener('click', () => Swal.fire({ icon: 'info', title: 'Nuevo insumo', text: 'El formulario completo de alta permitirá serie, barcode, ubicación, estado, stock y trazabilidad.' }));
+  document.getElementById('newInventoryItemBtn')?.addEventListener('click', openInventoryAssetForm);
   document.getElementById('loanRequestBtn')?.addEventListener('click', openLoanRequest);
   document.getElementById('loanRequestBtn2')?.addEventListener('click', openLoanRequest);
   document.getElementById('massNotifyBtn')?.addEventListener('click', openNotificationComposer);
@@ -942,6 +946,124 @@ function bindEvents() {
   });
 }
 
-applySavedTheme();
-bindEvents();
-renderView();
+
+async function refreshSupabaseData() {
+  if (!window.sb?.enabled) return;
+  try {
+    const [profile, users, inventory] = await Promise.all([
+      window.sb.fetchProfile().catch(() => null),
+      window.sb.listProfiles().catch(() => null),
+      window.sb.listInventory().catch(() => null)
+    ]);
+    if (profile) {
+      state.user = profile;
+      localStorage.setItem('ism_demo_user', JSON.stringify(profile));
+      updateHeader();
+    }
+    if (Array.isArray(users) && users.length) state.users = users;
+    if (Array.isArray(inventory)) state.inventory = inventory;
+  } catch (error) {
+    console.error(error);
+    showToast('Supabase', error.message || 'No se pudieron cargar los datos conectados');
+  }
+}
+
+async function openInventoryAssetForm() {
+  const result = await Swal.fire({
+    title: 'Nuevo insumo / equipo',
+    html: `<div class="swal-form-grid">
+      <label><span>Nombre</span><input id="assetItem" class="swal2-input" placeholder="Ej. Arduino UNO"></label>
+      <label><span>Categoría</span><input id="assetCategory" class="swal2-input" placeholder="Robótica / Sensores"></label>
+      <label><span>Tipo</span><select id="assetType" class="swal2-select"><option>Equipo</option><option>Insumo</option></select></label>
+      <label><span>Código interno</span><input id="assetCode" class="swal2-input" placeholder="Opcional"></label>
+      <label><span>N° serie</span><input id="assetSerial" class="swal2-input" placeholder="Opcional"></label>
+      <label><span>Barcode</span><input id="assetBarcode" class="swal2-input" placeholder="Opcional, se genera solo"></label>
+      <label><span>Ubicación</span><select id="assetLocation" class="swal2-select"><option value="LAB-ROB">Lab. Robótica</option><option value="DEP-GRAL">Depósito General</option><option value="ARM-A1">Armario A1</option></select></label>
+      <label class="full-span"><span>Condición / Observación</span><textarea id="assetCondition" class="swal2-textarea" placeholder="Nuevo, usado, completo, faltantes..."></textarea></label>
+    </div>`,
+    showCancelButton: true,
+    confirmButtonText: 'Guardar',
+    cancelButtonText: 'Cancelar',
+    preConfirm: () => {
+      const item = document.getElementById('assetItem').value.trim();
+      if (!item) return Swal.showValidationMessage('Ingresá el nombre del insumo/equipo');
+      return {
+        item,
+        category: document.getElementById('assetCategory').value.trim() || 'General',
+        type: document.getElementById('assetType').value,
+        code: document.getElementById('assetCode').value.trim(),
+        serial: document.getElementById('assetSerial').value.trim(),
+        barcode: document.getElementById('assetBarcode').value.trim(),
+        location_code: document.getElementById('assetLocation').value,
+        condition: document.getElementById('assetCondition').value.trim()
+      };
+    }
+  });
+  if (!result.isConfirmed) return;
+  try {
+    if (window.sb?.enabled) {
+      await window.sb.createInventoryAsset(result.value);
+      await refreshSupabaseData();
+    } else {
+      state.inventory.unshift({ id: Date.now(), code: result.value.code || `TMP-${Date.now()}`, item: result.value.item, type: result.value.type, serial: result.value.serial, barcode: result.value.barcode || `ISM-${Date.now()}`, status: 'Disponible', condition: result.value.condition || 'Sin observaciones', assignedTo: 'Depósito', requestedAt: '-', returnedAt: '-', teacher: '-', location: 'Lab. Robótica' });
+    }
+    renderView();
+    showToast('Inventario', 'El insumo fue guardado correctamente');
+  } catch (error) {
+    Swal.fire({ icon: 'error', title: 'No se pudo guardar', text: error.message });
+  }
+}
+
+async function openUserProfileForm() {
+  const result = await Swal.fire({
+    title: 'Nuevo usuario',
+    html: `<div class="swal-form-grid">
+      <label><span>Nombre completo</span><input id="userFullName" class="swal2-input"></label>
+      <label><span>Email</span><input id="userEmail" type="email" class="swal2-input"></label>
+      <label><span>Contraseña inicial</span><input id="userPassword" type="text" class="swal2-input" placeholder="Opcional"></label>
+      <label><span>Rol</span><select id="userRole" class="swal2-select"><option>Alumno</option><option>Docente</option><option>Administrador</option></select></label>
+      <label><span>DNI</span><input id="userDni" class="swal2-input"></label>
+      <label><span>WhatsApp</span><input id="userWhatsapp" class="swal2-input"></label>
+    </div>`,
+    showCancelButton: true,
+    confirmButtonText: 'Crear',
+    cancelButtonText: 'Cancelar',
+    preConfirm: () => {
+      const name = document.getElementById('userFullName').value.trim();
+      const email = document.getElementById('userEmail').value.trim().toLowerCase();
+      if (!name || !email) return Swal.showValidationMessage('Nombre y email son obligatorios');
+      return { name, full_name: name, email, password: document.getElementById('userPassword').value.trim(), role: document.getElementById('userRole').value, dni: document.getElementById('userDni').value.trim(), whatsapp: document.getElementById('userWhatsapp').value.trim() };
+    }
+  });
+  if (!result.isConfirmed) return;
+  try {
+    if (window.sb?.enabled) {
+      const created = await window.sb.signUpUser(result.value);
+      await refreshSupabaseData();
+      Swal.fire({ icon: 'success', title: 'Usuario creado', text: `Contraseña inicial: ${created.password}. Guardala y pedile que inicie sesión.` });
+    } else {
+      state.users.unshift({ id: Date.now(), name: result.value.name, role: result.value.role, email: result.value.email, whatsapp: result.value.whatsapp || '-', dni: result.value.dni || '-', status: 'Activo' });
+      renderView();
+      showToast('Usuarios', 'Usuario agregado en modo demo');
+    }
+  } catch (error) {
+    Swal.fire({ icon: 'error', title: 'No se pudo crear', text: error.message });
+  }
+}
+
+async function bootApp() {
+  applySavedTheme();
+  bindEvents();
+  if (window.sb?.enabled) {
+    const { data } = await window.sb.getSession();
+    if (!data.session && !localStorage.getItem('ism_demo_user')) {
+      window.location.href = './index.html';
+      return;
+    }
+    await refreshSupabaseData();
+  }
+  renderView();
+}
+
+bootApp();
+
