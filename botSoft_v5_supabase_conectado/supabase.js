@@ -75,14 +75,12 @@ window.sb = (() => {
       const { data: { user }, error: userError } = await client.auth.getUser();
       if (userError) throw userError;
       if (!user) return null;
-      await client.rpc('ensure_current_user_profile').catch(() => null);
       const { data, error } = await client
         .from('profiles')
         .select('*, roles:role_id(name, code), courses:student_course_id(name), divisions:student_division_id(name), subjects:teacher_subject_id(name)')
         .eq('id', user.id)
         .maybeSingle();
       if (error) throw error;
-      if (!data) return normalizeProfile({ id: user.id, full_name: user.email?.split('@')[0], email: user.email, role_code: 'administrator' });
       return normalizeProfile({ ...data, email: user.email });
     },
     async listProfiles() {
@@ -106,7 +104,7 @@ window.sb = (() => {
       if (error) throw error;
     },
     async signUpUser(payload) {
-      const email = String(payload.email || '').trim().toLowerCase();
+      const email = payload.email;
       const password = payload.password || crypto.randomUUID().slice(0, 12) + 'Aa1!';
       const roleCode = roleCodeFromLabel[payload.role] || payload.role || 'student';
       const { data, error } = await assertClient().auth.signUp({
@@ -114,7 +112,6 @@ window.sb = (() => {
         options: { data: { full_name: payload.full_name || payload.name, role_code: roleCode } }
       });
       if (error) throw error;
-      await client.rpc('admin_set_user_role_by_email', { p_email: email, p_role_code: roleCode }).catch(() => null);
       return { user: data.user, password };
     },
     async listInventory() {

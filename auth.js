@@ -45,11 +45,15 @@ document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
       throw new Error('Usuario demo no reconocido. Usá admin/admin123, docente/docente123 o alumno/alumno123.');
     }
 
-    const email = identifier.includes('@') ? identifier : `${identifier}@ism.edu.ar`;
+    const email = identifier.includes('@') ? identifier : `${identifier}@institutosanmiguel.edu.ar`;
     const { error } = await window.sb.signIn(email, password);
     if (error) throw error;
     window.location.href = './app.html';
   } catch (error) {
-    authMessage.textContent = error.message || 'No se pudo iniciar sesión.';
+    const msg = error.message || 'No se pudo iniciar sesión.';
+    authMessage.textContent = msg.includes('Invalid login credentials')
+      ? 'Credenciales inválidas. Verificá que el usuario exista en Supabase Auth, tenga contraseña y el email esté confirmado si tu proyecto lo requiere.'
+      : msg;
+    console.error('Login Supabase:', error);
   }
 });

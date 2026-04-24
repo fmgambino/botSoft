@@ -142,7 +142,10 @@ returns trigger language plpgsql security definer set search_path = public as $$
 declare
   default_role uuid;
 begin
-  select id into default_role from public.roles where code = 'student';
+  select id into default_role from public.roles where code = coalesce(new.raw_user_meta_data->>'role_code', 'student');
+  if default_role is null then
+    select id into default_role from public.roles where code = 'student';
+  end if;
   insert into public.profiles (id, role_id, full_name, avatar_url)
   values (
     new.id,
@@ -693,88 +696,3 @@ commit;
 -- set role_id = (select id from public.roles where code='administrator'), is_active = true
 -- from auth.users u
 -- where p.id = u.id and u.email = 'TU_EMAIL_ADMIN@DOMINIO.COM';
-
--- =========================================================
--- PATCH v6.1: conexión frontend + bootstrap admin
--- Ejecutar este bloque si ya corriste una versión anterior.
--- =========================================================
-
-create or replace function public.ensure_current_user_profile()
-returns public.profiles
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_uid uuid := auth.uid();
-  v_email text := auth.email();
-  v_role_id bigint;
-  v_profile public.profiles;
-begin
-  if v_uid is null then
-    raise exception 'No hay sesión autenticada';
-  end if;
-
-  select p.* into v_profile from public.profiles p where p.id = v_uid;
-  if found then
-    return v_profile;
-  end if;
-
-  -- Primer usuario o correo institucional principal => Administrador.
-  if not exists (select 1 from public.profiles)
-     or lower(coalesce(v_email,'')) = 'roboticanivelsecundario@institutosanmiguel.edu.ar' then
-    select id into v_role_id from public.roles where code = 'administrator' limit 1;
-  else
-    select id into v_role_id from public.roles where code = 'student' limit 1;
-  end if;
-
-  insert into public.profiles (id, role_id, full_name, avatar_url, is_active)
-  values (
-    v_uid,
-    v_role_id,
-    coalesce(nullif(auth.jwt() -> 'user_metadata' ->> 'full_name',''), split_part(v_email,'@',1), 'Usuario'),
-    './assets/avatar-default.svg',
-    true
-  )
-  returning * into v_profile;
-
-  return v_profile;
-end;
-$$;
-
-grant execute on function public.ensure_current_user_profile() to authenticated;
-
-create or replace function public.admin_set_user_role_by_email(p_email text, p_role_code text)
-returns void
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_role_id bigint;
-  v_profile_id uuid;
-begin
-  if not public.is_admin(auth.uid()) then
-    raise exception 'Solo administradores pueden cambiar roles';
-  end if;
-  select id into v_role_id from public.roles where code = p_role_code limit 1;
-  if v_role_id is null then raise exception 'Rol inexistente: %', p_role_code; end if;
-
-  select id into v_profile_id from auth.users where lower(email) = lower(p_email) limit 1;
-  if v_profile_id is null then raise exception 'El usuario auth todavía no existe: %', p_email; end if;
-
-  insert into public.profiles (id, role_id, full_name, is_active)
-  values (v_profile_id, v_role_id, split_part(p_email,'@',1), true)
-  on conflict (id) do update set role_id = excluded.role_id, updated_at = now();
-end;
-$$;
-
-grant execute on function public.admin_set_user_role_by_email(text,text) to authenticated;
-
--- Si ya existe el usuario en Auth, lo deja como administrador.
-insert into public.profiles (id, role_id, full_name, is_active)
-select u.id, r.id, coalesce(u.raw_user_meta_data->>'full_name','Administrador Robótica'), true
-from auth.users u cross join public.roles r
-where lower(u.email) = 'roboticanivelsecundario@institutosanmiguel.edu.ar'
-  and r.code = 'administrator'
-on conflict (id) do update set role_id = excluded.role_id, is_active = true, updated_at = now();
