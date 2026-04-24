@@ -1,6 +1,8 @@
 const CACHE = 'ism-robosoft-v1';
 const ASSETS = [
-  './', './index.html', './app.html', './styles.css', './auth.js', './app.js', './supabase.js', './config.example.js', './manifest.webmanifest', './assets/logo.svg', './assets/avatar-default.svg'
+  './', './index.html', './app.html', './styles.css', './auth.js', './js/app.js',
+  './js/config.js',
+  './js/supabaseClient.js', './supabase.js', './config.example.js', './manifest.webmanifest', './assets/logo.svg', './assets/avatar-default.svg'
 ];
 
 self.addEventListener('install', event => {

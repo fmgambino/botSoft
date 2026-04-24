@@ -225,8 +225,12 @@ function statusPill(status) {
   return `<span class="status-pill ${map[status] || 'status-pending'}">${status}</span>`;
 }
 
-function actionButtons() {
-  return `<div class="actions"><button class="action-btn" title="Ver">${icons.eye}</button><button class="action-btn" title="Editar">${icons.edit}</button><button class="action-btn" title="Eliminar">${icons.trash}</button></div>`;
+function actionButtons(type = '', id = '') {
+  return `<div class="actions">
+    <button class="action-btn" data-action="view" data-type="${type}" data-id="${id}" title="Ver">${icons.eye}</button>
+    <button class="action-btn" data-action="edit" data-type="${type}" data-id="${id}" title="Editar">${icons.edit}</button>
+    <button class="action-btn" data-action="delete" data-type="${type}" data-id="${id}" title="Eliminar">${icons.trash}</button>
+  </div>`;
 }
 
 function currentTeacherModules() {
@@ -368,7 +372,7 @@ function renderUsers() {
         <table class="table">
           <thead><tr><th>Nombre</th><th>Rol</th><th>Email</th><th>WhatsApp</th><th>DNI</th><th>Estado</th><th>Acciones</th></tr></thead>
           <tbody>
-            ${filtered.map(user => `<tr><td><strong>${user.name}</strong></td><td>${user.role}</td><td>${user.email}</td><td>${user.whatsapp}</td><td>${user.dni}</td><td>${statusPill(user.status)}</td><td>${actionButtons()}</td></tr>`).join('')}
+            ${filtered.map(user => `<tr><td><strong>${user.name}</strong></td><td>${user.role}</td><td>${user.email}</td><td>${user.whatsapp}</td><td>${user.dni}</td><td>${statusPill(user.status)}</td><td>${actionButtons('user', user.id)}</td></tr>`).join('')}
           </tbody>
         </table>
       </div>
@@ -433,7 +437,7 @@ function renderInventory() {
           <table class="table inventory-table">
             <thead><tr><th>Código</th><th>Tipo</th><th>N° serie</th><th>Barcode</th><th>Estado</th><th>Condición</th><th>Asignado a</th><th>Docente</th><th>Pedido</th><th>Devolución</th><th>Ubicación</th><th>Acciones</th></tr></thead>
             <tbody>
-              ${rows.map(item => `<tr><td><strong>${item.code}</strong><br><span class="muted small">${item.item}</span></td><td>${item.type}</td><td>${item.serial || 'Sin serie'}</td><td><div class="barcode-cell"><span>${item.barcode}</span><span class="mini-icon">${icons.barcode}</span></div></td><td>${statusPill(item.status)}</td><td>${item.condition}</td><td>${item.assignedTo}</td><td>${item.teacher}</td><td>${item.requestedAt}</td><td>${item.returnedAt}</td><td>${item.location}</td><td>${actionButtons()}</td></tr>`).join('')}
+              ${rows.map(item => `<tr><td><strong>${item.code}</strong><br><span class="muted small">${item.item}</span></td><td>${item.type}</td><td>${item.serial || 'Sin serie'}</td><td><div class="barcode-cell"><span>${item.barcode}</span><span class="mini-icon">${icons.barcode}</span></div></td><td>${statusPill(item.status)}</td><td>${item.condition}</td><td>${item.assignedTo}</td><td>${item.teacher}</td><td>${item.requestedAt}</td><td>${item.returnedAt}</td><td>${item.location}</td><td>${actionButtons('inventory', item.id)}</td></tr>`).join('')}
             </tbody>
           </table>
         </div>
@@ -850,11 +854,115 @@ function updateLoanStatus(id, status) {
   showToast('Préstamo actualizado', status);
 }
 
+
+function getRecordByType(type, id) {
+  const nId = Number(id);
+  if (type === 'user') return state.users.find(x => String(x.id) === String(id) || x.id === nId);
+  if (type === 'inventory') return state.inventory.find(x => String(x.id) === String(id) || x.id === nId);
+  if (type === 'team') return state.teams.find(x => String(x.id) === String(id) || x.id === nId);
+  return null;
+}
+
+async function handleTableAction(type, action, id) {
+  const row = getRecordByType(type, id);
+  if (!row) return Swal.fire({ icon: 'warning', title: 'Registro no encontrado' });
+  if (action === 'view') return viewRecord(type, row);
+  if (action === 'edit') return editRecord(type, row);
+  if (action === 'delete') return deleteRecord(type, row);
+}
+
+function viewRecord(type, row) {
+  const title = type === 'user' ? 'Detalle de usuario' : type === 'inventory' ? 'Detalle de inventario' : 'Detalle de equipo';
+  const html = `<div class="detail-grid">${Object.entries(row).map(([k,v]) => `<div><strong>${escapeHtml(k)}</strong><span>${escapeHtml(Array.isArray(v) ? v.join(', ') : v ?? '-')}</span></div>`).join('')}</div>`;
+  return Swal.fire({ title, html, width: 760, confirmButtonText: 'Cerrar' });
+}
+
+async function editRecord(type, row) {
+  if (type === 'user') return editUserRecord(row);
+  if (type === 'inventory') return editInventoryRecord(row);
+  if (type === 'team') return editTeamRecord(row);
+}
+
+async function editUserRecord(row) {
+  const result = await Swal.fire({
+    title: 'Editar usuario',
+    html: `<div class="swal-form-grid">
+      <label><span>Nombre completo</span><input id="editName" class="swal2-input" value="${escapeHtml(row.name)}"></label>
+      <label><span>Email</span><input id="editEmail" class="swal2-input" value="${escapeHtml(row.email)}" disabled></label>
+      <label><span>Rol</span><select id="editRole" class="swal2-select"><option ${row.role==='Administrador'?'selected':''}>Administrador</option><option ${row.role==='Docente'?'selected':''}>Docente</option><option ${row.role==='Alumno'?'selected':''}>Alumno</option></select></label>
+      <label><span>Estado</span><select id="editStatus" class="swal2-select"><option ${row.status==='Activo'?'selected':''}>Activo</option><option ${row.status==='Inactivo'?'selected':''}>Inactivo</option><option ${row.status==='Pendiente'?'selected':''}>Pendiente</option></select></label>
+      <label><span>DNI</span><input id="editDni" class="swal2-input" value="${escapeHtml(row.dni || '')}"></label>
+      <label><span>WhatsApp</span><input id="editWhatsapp" class="swal2-input" value="${escapeHtml(row.whatsapp || '')}"></label>
+    </div>`,
+    showCancelButton: true, confirmButtonText: 'Guardar', cancelButtonText: 'Cancelar',
+    preConfirm: () => ({ name: document.getElementById('editName').value.trim(), role: document.getElementById('editRole').value, status: document.getElementById('editStatus').value, dni: document.getElementById('editDni').value.trim(), whatsapp: document.getElementById('editWhatsapp').value.trim() })
+  });
+  if (!result.isConfirmed) return;
+  try {
+    if (window.sb?.enabled) await window.sb.updateProfileFull(row.id, result.value);
+    Object.assign(row, result.value);
+    await refreshSupabaseData(); renderView(); showToast('Usuario actualizado');
+  } catch (error) { Swal.fire({ icon:'error', title:'No se pudo actualizar', text:error.message }); }
+}
+
+async function editInventoryRecord(row) {
+  const result = await Swal.fire({
+    title: 'Editar insumo / equipo',
+    html: `<div class="swal-form-grid">
+      <label><span>Nombre</span><input id="editItem" class="swal2-input" value="${escapeHtml(row.item)}"></label>
+      <label><span>Tipo</span><select id="editType" class="swal2-select"><option ${row.type==='Equipo'?'selected':''}>Equipo</option><option ${row.type==='Insumo'?'selected':''}>Insumo</option></select></label>
+      <label><span>Código</span><input id="editCode" class="swal2-input" value="${escapeHtml(row.code)}"></label>
+      <label><span>N° serie</span><input id="editSerial" class="swal2-input" value="${escapeHtml(row.serial || '')}"></label>
+      <label><span>Barcode</span><input id="editBarcode" class="swal2-input" value="${escapeHtml(row.barcode || '')}"></label>
+      <label><span>Estado</span><select id="editInvStatus" class="swal2-select"><option ${row.status==='Disponible'?'selected':''}>Disponible</option><option ${row.status==='Prestado'?'selected':''}>Prestado</option><option ${row.status==='En mantenimiento'?'selected':''}>En mantenimiento</option></select></label>
+      <label class="full-span"><span>Condición</span><textarea id="editCondition" class="swal2-textarea">${escapeHtml(row.condition || '')}</textarea></label>
+    </div>`,
+    showCancelButton: true, confirmButtonText: 'Guardar', cancelButtonText: 'Cancelar',
+    preConfirm: () => ({ item: document.getElementById('editItem').value.trim(), type: document.getElementById('editType').value, code: document.getElementById('editCode').value.trim(), serial: document.getElementById('editSerial').value.trim(), barcode: document.getElementById('editBarcode').value.trim(), status: document.getElementById('editInvStatus').value, condition: document.getElementById('editCondition').value.trim() })
+  });
+  if (!result.isConfirmed) return;
+  try {
+    if (window.sb?.enabled) await window.sb.updateInventoryAsset(row.id, result.value);
+    Object.assign(row, result.value); await refreshSupabaseData(); renderView(); showToast('Inventario actualizado');
+  } catch (error) { Swal.fire({ icon:'error', title:'No se pudo actualizar', text:error.message }); }
+}
+
+async function editTeamRecord(row) {
+  const result = await Swal.fire({
+    title: 'Editar equipo',
+    html: `<div class="swal-form-grid"><label><span>Nombre</span><input id="editTeamName" class="swal2-input" value="${escapeHtml(row.name)}"></label><label><span>Proyecto</span><input id="editTeamProject" class="swal2-input" value="${escapeHtml(row.project || '')}"></label><label><span>Docentes</span><input id="editTeamTeachers" class="swal2-input" value="${escapeHtml((row.teachers||[]).join(', '))}"></label><label><span>Cursos</span><input id="editTeamCourses" class="swal2-input" value="${escapeHtml((row.courses||[]).join(', '))}"></label></div>`,
+    showCancelButton:true, confirmButtonText:'Guardar', cancelButtonText:'Cancelar',
+    preConfirm: () => ({ name: document.getElementById('editTeamName').value.trim(), project: document.getElementById('editTeamProject').value.trim(), teachers: document.getElementById('editTeamTeachers').value.split(',').map(x=>x.trim()).filter(Boolean), courses: document.getElementById('editTeamCourses').value.split(',').map(x=>x.trim()).filter(Boolean) })
+  });
+  if (!result.isConfirmed) return;
+  Object.assign(row, result.value); renderView(); showToast('Equipo actualizado');
+}
+
+async function deleteRecord(type, row) {
+  const result = await Swal.fire({ icon: 'warning', title: 'Eliminar registro', text: 'Se dará de baja el registro seleccionado.', showCancelButton: true, confirmButtonText: 'Eliminar', cancelButtonText: 'Cancelar' });
+  if (!result.isConfirmed) return;
+  try {
+    if (window.sb?.enabled) {
+      if (type === 'user') await window.sb.deleteProfile(row.id);
+      if (type === 'inventory') await window.sb.softDeleteInventoryAsset(row.id);
+    }
+    if (type === 'user') state.users = state.users.filter(x => String(x.id) !== String(row.id));
+    if (type === 'inventory') state.inventory = state.inventory.filter(x => String(x.id) !== String(row.id));
+    if (type === 'team') state.teams = state.teams.filter(x => String(x.id) !== String(row.id));
+    await refreshSupabaseData(); renderView(); showToast('Registro eliminado');
+  } catch (error) { Swal.fire({ icon:'error', title:'No se pudo eliminar', text:error.message }); }
+}
+
+function openResourceViewer(id) {
+  Swal.fire({ title: 'Recurso', text: `Recurso seleccionado: ${id}`, confirmButtonText: 'Cerrar' });
+}
+
 function attachViewEvents() {
   appContent.querySelectorAll('[data-view-btn]').forEach(btn => btn.addEventListener('click', () => openView(btn.dataset.viewBtn)));
   appContent.querySelectorAll('.notification-select').forEach(btn => btn.addEventListener('click', () => selectNotification(btn.dataset.id)));
   appContent.querySelectorAll('[data-import]').forEach(btn => btn.addEventListener('click', () => openImport(btn.dataset.import)));
   appContent.querySelectorAll('[data-export]').forEach(btn => btn.addEventListener('click', () => triggerDownload(`${btn.dataset.export}.csv`, csvFromRows(dataByModule(btn.dataset.export)))));
+  appContent.querySelectorAll('[data-action][data-type][data-id]').forEach(btn => btn.addEventListener('click', () => handleTableAction(btn.dataset.type, btn.dataset.action, btn.dataset.id)));
   appContent.querySelectorAll('[data-create]').forEach(btn => btn.addEventListener('click', () => {
     if (btn.dataset.create === 'user') return openUserProfileForm();
     if (btn.dataset.create === 'inventory') return openInventoryAssetForm();
@@ -950,10 +1058,12 @@ function bindEvents() {
 async function refreshSupabaseData() {
   if (!window.sb?.enabled) return;
   try {
-    const [profile, users, inventory] = await Promise.all([
+    const [profile, users, inventory, teams, loans] = await Promise.all([
       window.sb.fetchProfile().catch(() => null),
       window.sb.listProfiles().catch(() => null),
-      window.sb.listInventory().catch(() => null)
+      window.sb.listInventory().catch(() => null),
+      window.sb.listTeams?.().catch(() => null),
+      window.sb.listLoans?.().catch(() => null)
     ]);
     if (profile) {
       state.user = profile;
@@ -962,6 +1072,8 @@ async function refreshSupabaseData() {
     }
     if (Array.isArray(users) && users.length) state.users = users;
     if (Array.isArray(inventory)) state.inventory = inventory;
+    if (Array.isArray(teams) && teams.length) state.teams = teams;
+    if (Array.isArray(loans) && loans.length) state.loans = loans;
   } catch (error) {
     console.error(error);
     showToast('Supabase', error.message || 'No se pudieron cargar los datos conectados');
@@ -1038,9 +1150,10 @@ async function openUserProfileForm() {
   if (!result.isConfirmed) return;
   try {
     if (window.sb?.enabled) {
-      const created = await window.sb.signUpUser(result.value);
+      await window.sb.upsertUserProfile(result.value);
       await refreshSupabaseData();
-      Swal.fire({ icon: 'success', title: 'Usuario creado', text: `Contraseña inicial: ${created.password}. Guardala y pedile que inicie sesión.` });
+      renderView();
+      Swal.fire({ icon: 'success', title: 'Usuario creado en ABM', text: 'El perfil quedó guardado en la base. Para login con contraseña, creá/invitá ese email en Supabase Authentication o usá Edge Function con service role.' });
     } else {
       state.users.unshift({ id: Date.now(), name: result.value.name, role: result.value.role, email: result.value.email, whatsapp: result.value.whatsapp || '-', dni: result.value.dni || '-', status: 'Activo' });
       renderView();

@@ -778,3 +778,235 @@ from auth.users u cross join public.roles r
 where lower(u.email) = 'roboticanivelsecundario@institutosanmiguel.edu.ar'
   and r.code = 'administrator'
 on conflict (id) do update set role_id = excluded.role_id, is_active = true, updated_at = now();
+
+-- =========================================================
+-- PATCH v6.2: ABM real para frontend Admin
+-- Ejecutar completo en Supabase SQL Editor después del script base.
+-- =========================================================
+
+create or replace function public.admin_upsert_profile_by_email(
+  p_email text,
+  p_full_name text,
+  p_role_code text default 'student',
+  p_dni text default null,
+  p_whatsapp text default null
+)
+returns public.profiles
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_role_id bigint;
+  v_profile_id uuid;
+  v_profile public.profiles;
+begin
+  if not public.is_admin(auth.uid()) then
+    raise exception 'Solo administradores pueden crear o editar usuarios';
+  end if;
+
+  select id into v_role_id from public.roles where code = coalesce(nullif(p_role_code,''),'student') limit 1;
+  if v_role_id is null then raise exception 'Rol inexistente: %', p_role_code; end if;
+
+  select id into v_profile_id from auth.users where lower(email) = lower(p_email) limit 1;
+  if v_profile_id is null then
+    v_profile_id := gen_random_uuid();
+  end if;
+
+  insert into public.profiles (id, role_id, full_name, dni, whatsapp, is_active, avatar_url)
+  values (v_profile_id, v_role_id, coalesce(nullif(p_full_name,''), split_part(p_email,'@',1)), nullif(p_dni,''), nullif(p_whatsapp,''), true, './assets/avatar-default.svg')
+  on conflict (id) do update set
+    role_id = excluded.role_id,
+    full_name = excluded.full_name,
+    dni = excluded.dni,
+    whatsapp = excluded.whatsapp,
+    is_active = true,
+    updated_at = now()
+  returning * into v_profile;
+
+  return v_profile;
+end;
+$$;
+
+grant execute on function public.admin_upsert_profile_by_email(text,text,text,text,text) to authenticated;
+
+create or replace function public.admin_update_profile_full(
+  p_profile_id uuid,
+  p_full_name text,
+  p_role_code text default null,
+  p_dni text default null,
+  p_whatsapp text default null,
+  p_is_active boolean default true
+)
+returns public.profiles
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_role_id bigint;
+  v_profile public.profiles;
+begin
+  if not public.is_admin(auth.uid()) then
+    raise exception 'Solo administradores pueden editar usuarios';
+  end if;
+  if p_role_code is not null then
+    select id into v_role_id from public.roles where code = p_role_code limit 1;
+  end if;
+  update public.profiles
+  set full_name = coalesce(nullif(p_full_name,''), full_name),
+      role_id = coalesce(v_role_id, role_id),
+      dni = nullif(p_dni,''),
+      whatsapp = nullif(p_whatsapp,''),
+      is_active = coalesce(p_is_active, is_active),
+      updated_at = now()
+  where id = p_profile_id
+  returning * into v_profile;
+  if v_profile.id is null then raise exception 'Usuario no encontrado'; end if;
+  return v_profile;
+end;
+$$;
+
+grant execute on function public.admin_update_profile_full(uuid,text,text,text,text,boolean) to authenticated;
+
+create or replace function public.admin_delete_profile(p_profile_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_admin(auth.uid()) then
+    raise exception 'Solo administradores pueden eliminar usuarios';
+  end if;
+  update public.profiles set is_active = false, updated_at = now() where id = p_profile_id;
+end;
+$$;
+
+grant execute on function public.admin_delete_profile(uuid) to authenticated;
+
+create or replace function public.admin_update_inventory_asset(
+  p_asset_id uuid,
+  p_name text,
+  p_category text default 'General',
+  p_serial_number text default null,
+  p_barcode text default null,
+  p_status text default 'Disponible',
+  p_condition_note text default null,
+  p_location_code text default null
+)
+returns public.inventory_assets
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_asset public.inventory_assets;
+  v_status_id uuid;
+  v_location_id uuid;
+begin
+  if not public.has_permission(auth.uid(), 'inventory.manage') then
+    raise exception 'Sin permiso para gestionar inventario';
+  end if;
+
+  select id into v_status_id from public.inventory_status_catalog where frontend_status = p_status order by sort_order limit 1;
+  if v_status_id is null then select id into v_status_id from public.inventory_status_catalog where code = 'nuevo' limit 1; end if;
+  if p_location_code is not null then select id into v_location_id from public.inventory_locations where code = p_location_code limit 1; end if;
+
+  update public.inventory_assets a
+  set serial_number = nullif(p_serial_number,''),
+      barcode = coalesce(nullif(p_barcode,''), barcode),
+      status_id = coalesce(v_status_id, status_id),
+      current_location_id = coalesce(v_location_id, current_location_id),
+      condition_note = p_condition_note,
+      updated_at = now()
+  where a.id = p_asset_id
+  returning * into v_asset;
+
+  update public.inventory_catalog_items ci
+  set name = coalesce(nullif(p_name,''), ci.name), updated_at = now()
+  where ci.id = v_asset.catalog_item_id;
+
+  return v_asset;
+end;
+$$;
+
+grant execute on function public.admin_update_inventory_asset(uuid,text,text,text,text,text,text,text) to authenticated;
+
+create or replace view public.teams_frontend_view as
+select
+  t.id,
+  t.name,
+  t.description as project,
+  coalesce(array_remove(array_agg(distinct tp.full_name) filter (where tp.full_name is not null), null), array[]::text[]) as teachers,
+  coalesce(array_remove(array_agg(distinct c.name) filter (where c.name is not null), null), array[]::text[]) as courses,
+  coalesce(array_remove(array_agg(distinct d.name) filter (where d.name is not null), null), array[]::text[]) as divisions,
+  count(distinct tm.profile_id) filter (where rp.code = 'student')::int as students,
+  t.created_at
+from public.teams t
+left join public.profiles tp on tp.id = t.teacher_id
+left join public.courses c on c.id = t.course_id
+left join public.divisions d on d.id = t.division_id
+left join public.team_members tm on tm.team_id = t.id
+left join public.profiles mp on mp.id = tm.profile_id
+left join public.roles rp on rp.id = mp.role_id
+group by t.id, t.name, t.description, t.created_at;
+
+grant select on public.teams_frontend_view to authenticated;
+
+create or replace view public.loans_frontend_view as
+select
+  l.id,
+  coalesce(req.full_name, '-') as requester,
+  coalesce(t.name, '-') as team,
+  l.requested_at,
+  to_char(l.checked_out_at, 'HH24:MI') as from_time,
+  to_char(l.due_at, 'HH24:MI') as to_time,
+  coalesce(array_remove(array_agg(distinct a.asset_code) filter (where a.asset_code is not null), null), array[]::text[]) as items,
+  l.notes,
+  l.status,
+  case l.status
+    when 'aprobado' then 'Aprobado'
+    when 'rechazado' then 'Rechazado'
+    when 'cerrado' then 'Devuelto'
+    when 'cancelado' then 'Cancelado'
+    else 'Pendiente'
+  end as status_label,
+  l.created_at
+from public.inventory_loans l
+left join public.profiles req on req.id = l.requester_profile_id
+left join public.teams t on t.id = l.team_id
+left join public.inventory_loan_items li on li.loan_id = l.id
+left join public.inventory_assets a on a.id = li.asset_id
+group by l.id, req.full_name, t.name, l.requested_at, l.checked_out_at, l.due_at, l.notes, l.status, l.created_at;
+
+grant select on public.loans_frontend_view to authenticated;
+
+create or replace function public.admin_update_loan_status(p_loan_id uuid, p_status_label text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_status text;
+begin
+  if not public.has_permission(auth.uid(), 'inventory.approve') then
+    raise exception 'Sin permiso para aprobar préstamos';
+  end if;
+  v_status := case p_status_label
+    when 'Aprobado' then 'aprobado'
+    when 'Rechazado' then 'rechazado'
+    when 'Devuelto' then 'cerrado'
+    else 'abierto'
+  end;
+  update public.inventory_loans
+  set status = v_status,
+      approved_at = case when v_status = 'aprobado' then now() else approved_at end,
+      returned_at = case when v_status = 'cerrado' then now() else returned_at end,
+      updated_at = now()
+  where id = p_loan_id;
+end;
+$$;
+
+grant execute on function public.admin_update_loan_status(uuid,text) to authenticated;

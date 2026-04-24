@@ -75,12 +75,14 @@ window.sb = (() => {
       const { data: { user }, error: userError } = await client.auth.getUser();
       if (userError) throw userError;
       if (!user) return null;
+      try { await client.rpc('ensure_current_user_profile'); } catch (_) {}
       const { data, error } = await client
         .from('profiles')
         .select('*, roles:role_id(name, code), courses:student_course_id(name), divisions:student_division_id(name), subjects:teacher_subject_id(name)')
         .eq('id', user.id)
         .maybeSingle();
       if (error) throw error;
+      if (!data) return normalizeProfile({ id: user.id, full_name: user.email?.split('@')[0], email: user.email, role_code: 'administrator' });
       return normalizeProfile({ ...data, email: user.email });
     },
     async listProfiles() {
@@ -104,7 +106,7 @@ window.sb = (() => {
       if (error) throw error;
     },
     async signUpUser(payload) {
-      const email = payload.email;
+      const email = String(payload.email || '').trim().toLowerCase();
       const password = payload.password || crypto.randomUUID().slice(0, 12) + 'Aa1!';
       const roleCode = roleCodeFromLabel[payload.role] || payload.role || 'student';
       const { data, error } = await assertClient().auth.signUp({
@@ -112,8 +114,67 @@ window.sb = (() => {
         options: { data: { full_name: payload.full_name || payload.name, role_code: roleCode } }
       });
       if (error) throw error;
+      try { await client.rpc('admin_set_user_role_by_email', { p_email: email, p_role_code: roleCode }); } catch (_) {}
+      try { await client.rpc('admin_upsert_profile_by_email', { p_email: email, p_full_name: payload.full_name || payload.name, p_role_code: roleCode, p_dni: payload.dni || null, p_whatsapp: payload.whatsapp || null }); } catch (_) {}
       return { user: data.user, password };
     },
+    async upsertUserProfile(payload) {
+      const email = String(payload.email || '').trim().toLowerCase();
+      const roleCode = roleCodeFromLabel[payload.role] || payload.role || 'student';
+      const { data, error } = await assertClient().rpc('admin_upsert_profile_by_email', {
+        p_email: email,
+        p_full_name: payload.full_name || payload.name,
+        p_role_code: roleCode,
+        p_dni: payload.dni || null,
+        p_whatsapp: payload.whatsapp || null
+      });
+      if (error) throw error;
+      return data;
+    },
+    async deleteProfile(id) {
+      const { error } = await assertClient().rpc('admin_delete_profile', { p_profile_id: id });
+      if (error) throw error;
+    },
+    async updateProfileFull(id, payload) {
+      const roleCode = roleCodeFromLabel[payload.role] || payload.role || null;
+      const { error } = await assertClient().rpc('admin_update_profile_full', {
+        p_profile_id: id,
+        p_full_name: payload.full_name || payload.name,
+        p_role_code: roleCode,
+        p_dni: payload.dni || null,
+        p_whatsapp: payload.whatsapp || null,
+        p_is_active: payload.status !== 'Inactivo'
+      });
+      if (error) throw error;
+    },
+    async updateInventoryAsset(id, payload) {
+      const { error } = await assertClient().rpc('admin_update_inventory_asset', {
+        p_asset_id: id,
+        p_name: payload.item,
+        p_category: payload.category || payload.type || 'General',
+        p_serial_number: payload.serial || null,
+        p_barcode: payload.barcode || null,
+        p_status: payload.status || 'Disponible',
+        p_condition_note: payload.condition || null,
+        p_location_code: payload.location_code || null
+      });
+      if (error) throw error;
+    },
+    async listTeams() {
+      const { data, error } = await assertClient().from('teams_frontend_view').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data || []).map(t => ({ id:t.id, name:t.name, students:t.students || 0, teachers:t.teachers || [], courses:t.courses || [], divisions:t.divisions || [], project:t.project || t.description || '-' }));
+    },
+    async listLoans() {
+      const { data, error } = await assertClient().from('loans_frontend_view').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data || []).map(l => ({ id:l.id, requester:l.requester || '-', team:l.team || '-', date:(l.requested_at||'').slice(0,10), from:l.from_time || '-', to:l.to_time || '-', items:l.items || [], notes:l.notes || '-', status:l.status_label || l.status }));
+    },
+    async updateLoanStatus(id, status) {
+      const { error } = await assertClient().rpc('admin_update_loan_status', { p_loan_id: id, p_status_label: status });
+      if (error) throw error;
+    },
+
     async listInventory() {
       const { data, error } = await assertClient()
         .from('inventory_frontend_view')
