@@ -116,7 +116,7 @@ const state = {
 const roleViews = {
   administrator: ['dashboard', 'users', 'roles', 'team', 'inventory', 'loanManagement', 'accessControl', 'courses', 'library', 'notifications', 'profile', 'settings'],
   teacher: ['dashboard', 'team', 'inventory', 'loanManagement', 'courses', 'library', 'notifications', 'profile'],
-  student: ['dashboard', 'courses', 'library', 'notifications', 'profile']
+  student: ['dashboard', 'loanManagement', 'courses', 'library', 'notifications', 'profile']
 };
 
 const baseLabels = {
@@ -146,6 +146,7 @@ const baseLabels = {
   },
   student: {
     dashboard: ['Dashboard alumno', 'Cursos inscriptos, tareas pendientes y actividad reciente'],
+    loanManagement: ['Gestión de préstamos', 'Tus solicitudes, estados y devoluciones'],
     courses: ['Campus alumno', 'Cursos inscriptos y cursos disponibles con código de acceso'],
     library: ['Biblioteca digital', 'Material de consulta disponible'],
     notifications: ['Notificaciones', 'Avisos académicos y del laboratorio'],
@@ -159,7 +160,7 @@ const nav = [
   { key: 'roles', icon: 'roles', label: { administrator: 'Roles y permisos' } },
   { key: 'team', icon: 'team', label: { administrator: 'Equipos', teacher: 'Equipos' } },
   { key: 'inventory', icon: 'inventory', label: { administrator: 'Inventario', teacher: 'Inventario' } },
-  { key: 'loanManagement', icon: 'inventory', label: { administrator: 'Gestión de préstamos', teacher: 'Gestión de préstamos' } },
+  { key: 'loanManagement', icon: 'inventory', label: { administrator: 'Gestión de préstamos', teacher: 'Gestión de préstamos', student: 'Gestión de préstamos' } },
   { key: 'accessControl', icon: 'access', label: { administrator: 'Control de acceso' } },
   { key: 'courses', icon: 'courses', label: { administrator: 'Campus docente', teacher: 'Campus docente', student: 'Campus alumno' } },
   { key: 'library', icon: 'library', label: { administrator: 'Biblioteca digital', teacher: 'Biblioteca digital', student: 'Biblioteca digital' } },
@@ -278,14 +279,22 @@ function statusPill(status) {
   return `<span class="status-pill ${map[status] || 'status-pending'}">${status}</span>`;
 }
 
-function actionButtons(type = '', id = '') {
-  return `<div class="actions">
-    <button class="action-btn" data-action="view" data-type="${type}" data-id="${id}" title="Ver">${icons.eye}</button>
-    <button class="action-btn" data-action="edit" data-type="${type}" data-id="${id}" title="Editar">${icons.edit}</button>
-    <button class="action-btn" data-action="delete" data-type="${type}" data-id="${id}" title="Eliminar">${icons.trash}</button>
-  </div>`;
+function isDemoMode() {
+  return !window.sb?.enabled;
 }
 
+function actionButtons(type = "", id = "") {
+  const demo = isDemoMode();
+  const inventoryRestricted = type === "inventory" && state.user.role !== "administrator";
+    const locked = (demo || inventoryRestricted) ? "disabled aria-disabled=\"true\" data-demo-disabled=\"1\"" : "";
+  const editTitle = demo ? "Acción deshabilitada en demo" : (inventoryRestricted ? "Solo administrador puede editar insumos" : "Editar");
+  const deleteTitle = demo ? "Acción deshabilitada en demo" : (inventoryRestricted ? "Solo administrador puede eliminar insumos" : "Eliminar");
+  return `<div class="actions">
+    <button class="action-btn" data-action="view" data-type="${type}" data-id="${id}" title="Ver">${icons.eye}</button>
+    <button class="action-btn" data-action="edit" data-type="${type}" data-id="${id}" ${locked} title="${editTitle}">${icons.edit}</button>
+    <button class="action-btn" data-action="delete" data-type="${type}" data-id="${id}" ${locked} title="${deleteTitle}">${icons.trash}</button>
+  </div>`;
+}
 function currentTeacherModules() {
   return state.modules.filter(mod => state.user.role !== 'teacher' || mod.teacher === state.user.name);
 }
@@ -466,7 +475,7 @@ function renderInventory() {
   if (state.inventoryPage > totalPages) state.inventoryPage = totalPages;
   const start = (state.inventoryPage - 1) * state.inventoryPageSize;
   const rows = allRows.slice(start, start + state.inventoryPageSize);
-  const pager = `<div class="pager inventory-pager"><div class="pager-size"><span class="muted small">Listar</span><select id="inventoryPageSize"><option ${state.inventoryPageSize===5?'selected':''}>5</option><option ${state.inventoryPageSize===10?'selected':''}>10</option><option ${state.inventoryPageSize===25?'selected':''}>25</option><option ${state.inventoryPageSize===50?'selected':''}>50</option><option ${state.inventoryPageSize===100?'selected':''}>100</option></select><span class="muted small">${allRows.length} registros</span></div><div class="pager-buttons"><button class="btn btn-secondary btn-sm" id="inventoryPrevPage" ${state.inventoryPage<=1?'disabled':''}>← Anterior</button><span class="pager-current">${state.inventoryPage} / ${totalPages}</span><button class="btn btn-secondary btn-sm" id="inventoryNextPage" ${state.inventoryPage>=totalPages?'disabled':''}>Siguiente →</button></div></div>`;
+  const pager = `<div class="pager inventory-pager"><div class="pager-size"><span class="muted small">Listar</span><select class="inventory-page-size"><option ${state.inventoryPageSize===5?'selected':''}>5</option><option ${state.inventoryPageSize===10?'selected':''}>10</option><option ${state.inventoryPageSize===25?'selected':''}>25</option><option ${state.inventoryPageSize===50?'selected':''}>50</option><option ${state.inventoryPageSize===100?'selected':''}>100</option></select><span class="muted small">${allRows.length} registros</span></div><div class="pager-buttons"><button class="btn btn-secondary btn-sm inventory-prev-page" ${state.inventoryPage<=1?'disabled':''}>← Anterior</button><span class="pager-current">${state.inventoryPage} / ${totalPages}</span><button class="btn btn-secondary btn-sm inventory-next-page" ${state.inventoryPage>=totalPages?'disabled':''}>Siguiente →</button></div></div>`;
   const teacherActions = state.user.role === 'teacher' ? `<button class="btn btn-primary btn-sm" id="loanRequestBtn">Solicitud de préstamo</button>` : `<button class="btn btn-primary btn-sm" id="newInventoryItemBtn">Nuevo insumo</button>`;
   return `
     <section class="inventory-layout inventory-full-width">
@@ -657,8 +666,11 @@ function renderNotifications() {
 }
 
 function renderLoanManagement() {
-  const rows = state.user.role === 'teacher' ? state.loans.filter(l => l.requester === state.user.name) : state.loans;
-  return `<section class="card glass"><div class="section-header"><div><h3>Centro de préstamos</h3><p class="muted">Solicitudes, franjas horarias, estados y devoluciones.</p></div><div class="toolbar"><button class="btn btn-secondary btn-sm" data-export="loanManagement">${icons.export} Exportar CSV</button>${state.user.role==='teacher'?'<button class="btn btn-primary btn-sm" id="loanRequestBtn2">Nueva solicitud</button>':'<button class="btn btn-secondary btn-sm" id="loanChartsBtn">'+icons.chart+' Ver gráficos</button>'}</div></div><div class="toolbar filters-row"><input type="search" placeholder="Buscar por solicitante, equipo o insumo"><select><option>Todos los estados</option><option>Pendiente</option><option>Aprobado</option><option>Rechazado</option><option>Devuelto</option></select><button class="btn btn-secondary btn-sm" id="loanFilterBtn">${icons.filter} Filtros</button></div><div class="table-wrap"><table class="table"><thead><tr><th>Solicitante</th><th>Curso / equipo</th><th>Fecha</th><th>Horario</th><th>Insumos</th><th>Observaciones</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows.map(l=>`<tr><td>${l.requester}</td><td>${l.team}</td><td>${l.date}</td><td>${l.from} a ${l.to}</td><td>${l.items.join(', ')}</td><td>${l.notes}</td><td>${statusPill(l.status)}</td><td><div class="actions">${state.user.role==='administrator'?`<button class="action-btn" data-approve-loan="${l.id}" title="Aprobar">${icons.approve}</button><button class="action-btn" data-reject-loan="${l.id}" title="Rechazar">${icons.reject}</button><button class="action-btn" data-return-loan="${l.id}" title="Marcar devolución">${icons.returnIcon}</button>`:actionButtons()}</div></td></tr>`).join('')}</tbody></table></div></section>`;
+  const rows = state.user.role === 'administrator' ? state.loans : state.loans.filter(l => l.requester === state.user.name || String(l.requester_id || '') === String(state.user.id || ''));
+  const rightButton = state.user.role === 'administrator'
+    ? '<button class="btn btn-secondary btn-sm" id="loanChartsBtn">'+icons.chart+' Ver gráficos</button>'
+    : '<button class="btn btn-primary btn-sm" id="loanRequestBtn2">Nueva solicitud</button>';
+  return `<section class="card glass"><div class="section-header"><div><h3>Centro de préstamos</h3><p class="muted">Solicitudes, franjas horarias, estados y devoluciones.</p></div><div class="toolbar"><button class="btn btn-secondary btn-sm" data-export="loanManagement">${icons.export} Exportar CSV</button>${rightButton}</div></div><div class="toolbar filters-row"><input type="search" placeholder="Buscar por solicitante, equipo o insumo"><select><option>Todos los estados</option><option>Pendiente</option><option>Aprobado</option><option>Rechazado</option><option>Devuelto</option></select><button class="btn btn-secondary btn-sm" id="loanFilterBtn">${icons.filter} Filtros</button></div><div class="table-wrap"><table class="table"><thead><tr><th>Solicitante</th><th>Curso / equipo</th><th>Fecha</th><th>Horario</th><th>Insumos</th><th>Observaciones</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>${rows.map(l=>`<tr><td>${escapeHtml(l.requester)}</td><td>${escapeHtml(l.team)}</td><td>${escapeHtml(l.date)}</td><td>${escapeHtml(l.from)} a ${escapeHtml(l.to)}</td><td>${(l.items||[]).map(escapeHtml).join(', ')}</td><td>${escapeHtml(l.notes)}</td><td>${statusPill(l.status)}</td><td><div class="actions">${state.user.role==='administrator'?`<button class="action-btn" data-approve-loan="${l.id}" title="Aprobar">${icons.approve}</button><button class="action-btn" data-reject-loan="${l.id}" title="Rechazar">${icons.reject}</button><button class="action-btn" data-return-loan="${l.id}" title="Marcar devolución">${icons.returnIcon}</button>`:`<button class="action-btn" data-action="view" data-type="loanManagement" data-id="${l.id}" title="Ver">${icons.eye}</button>`}</div></td></tr>`).join('') || '<tr><td colspan="8" class="muted">No hay solicitudes registradas.</td></tr>'}</tbody></table></div></section>`;
 }
 
 function renderAccessControl() {
@@ -931,10 +943,17 @@ async function openLoanRequest() {
     }
   });
   if (!result.isConfirmed) return;
-  state.loans.unshift({ id: Date.now(), requester: state.user.name, team: result.value.course, date: result.value.date, from: result.value.from, to: result.value.to, items: result.value.selected, notes: result.value.notes || '-', status: 'Pendiente' });
-  state.notifications.unshift({ id: Date.now()+1, title: 'Nueva solicitud de préstamo', message: `${state.user.name} solicitó ${result.value.selected.join(', ')} para ${result.value.course}.`, unread: true, section: 'loanManagement' });
-  renderView();
-  Swal.fire({ icon: 'success', title: 'Solicitud registrada', text: `${result.value.selected.length} insumo(s) solicitados para ${result.value.course}.` });
+  try {
+    if (window.sb?.enabled) {
+      await window.sb.createLoanRequest(result.value);
+      await refreshSupabaseData();
+    } else {
+      state.loans.unshift({ id: Date.now(), requester: state.user.name, requester_id: state.user.id, team: result.value.course, date: result.value.date, from: result.value.from, to: result.value.to, items: result.value.selected, notes: result.value.notes || '-', status: 'Pendiente' });
+      state.notifications.unshift({ id: Date.now()+1, title: 'Nueva solicitud de préstamo', message: state.user.name + ' solicitó ' + result.value.selected.join(', ') + ' para ' + result.value.course + '.', unread: true, section: 'loanManagement' });
+    }
+    renderView();
+    Swal.fire({ icon: 'success', title: 'Solicitud registrada', text: result.value.selected.length + ' insumo(s) solicitados para ' + result.value.course + '.' });
+  } catch (error) { Swal.fire({ icon:'error', title:'No se pudo registrar la solicitud', text:error.message || String(error) }); }
 }
 
 async function openJoinCourse() {
@@ -1042,7 +1061,10 @@ async function editUserRecord(row) {
       <label><span>WhatsApp</span><input id="editWhatsapp" class="swal2-input" value="${escapeHtml(row.whatsapp || '')}"></label>
       <label><span>Fecha de nacimiento</span><input id="editBirthDate" type="date" class="swal2-input" value="${escapeHtml(row.birth_date || '')}"></label>
       <label><span>Título / Especialidad</span><input id="editTitle" class="swal2-input" value="${escapeHtml(row.title || '')}" placeholder="Disponible para Admin y Docente"></label>
-      <label class="full-span"><span>Foto de perfil / URL</span><input id="editAvatar" class="swal2-input" value="${escapeHtml(row.avatar_url || '')}" placeholder="https://... o base64"><small class="form-help">La foto queda guardada en Supabase. Para alumnos, los certificados se gestionan desde cursos terminados del Campus Virtual.</small></label>
+      <label class="full-span"><span>Foto de perfil</span>
+        <div class="avatar-edit-box"><img id="editAvatarPreview" src="${escapeAttr(row.avatar_url || './assets/avatar-default.svg')}" onerror="this.src='./assets/avatar-default.svg'" alt="Foto actual"><input id="editAvatarFile" type="file" accept="image/*"></div>
+        <input id="editAvatar" class="swal2-input" value="${escapeHtml(row.avatar_url || '')}" placeholder="URL opcional o base64 existente">
+        <small class="form-help">Podés cargar una imagen desde tu equipo o pegar una URL. Para alumnos, los certificados se gestionan desde cursos terminados del Campus Virtual.</small></label>
     </div>`,
     showCancelButton: true, confirmButtonText: 'Guardar', cancelButtonText: 'Cancelar',
     didOpen: () => {
@@ -1055,17 +1077,28 @@ async function editUserRecord(row) {
       };
       roleEl.addEventListener('change', syncTitle);
       syncTitle();
+      const avatarFile = document.getElementById('editAvatarFile');
+      const avatarInput = document.getElementById('editAvatar');
+      const avatarPreview = document.getElementById('editAvatarPreview');
+      avatarFile?.addEventListener('change', async () => {
+        const dataUrl = await readFileAsDataUrl(avatarFile.files?.[0]);
+        if (dataUrl) { avatarInput.value = dataUrl; avatarPreview.src = dataUrl; }
+      });
     },
-    preConfirm: () => ({
-      name: document.getElementById('editName').value.trim(),
-      role: document.getElementById('editRole').value,
-      status: document.getElementById('editStatus').value,
-      dni: document.getElementById('editDni').value.trim(),
-      whatsapp: document.getElementById('editWhatsapp').value.trim(),
-      birth_date: document.getElementById('editBirthDate').value || null,
-      title: document.getElementById('editRole').value === 'Alumno' ? null : document.getElementById('editTitle').value.trim(),
-      avatar_url: document.getElementById('editAvatar').value.trim()
-    })
+    preConfirm: async () => {
+      const fileData = await readFileAsDataUrl(document.getElementById('editAvatarFile').files?.[0]);
+      const avatarValue = fileData || document.getElementById('editAvatar').value.trim() || row.avatar_url || './assets/avatar-default.svg';
+      return {
+        name: document.getElementById('editName').value.trim(),
+        role: document.getElementById('editRole').value,
+        status: document.getElementById('editStatus').value,
+        dni: document.getElementById('editDni').value.trim(),
+        whatsapp: document.getElementById('editWhatsapp').value.trim(),
+        birth_date: document.getElementById('editBirthDate').value || null,
+        title: document.getElementById('editRole').value === 'Alumno' ? null : document.getElementById('editTitle').value.trim(),
+        avatar_url: avatarValue
+      };
+    }
   });
   if (!result.isConfirmed) return;
   try {
@@ -1076,10 +1109,12 @@ async function editUserRecord(row) {
 }
 
 async function editInventoryRecord(row) {
+  if (state.user.role !== 'administrator') return Swal.fire({ icon:'warning', title:'Acción no permitida', text:'Solo el administrador puede editar insumos.' });
   return openInventoryAssetForm(row);
 }
 
 async function deleteRecord(type, row) {
+  if (type === 'inventory' && state.user.role !== 'administrator') return Swal.fire({ icon:'warning', title:'Acción no permitida', text:'Solo el administrador puede eliminar insumos.' });
   const result = await Swal.fire({ icon: 'warning', title: 'Eliminar registro', text: type === 'user' ? 'Se eliminará el usuario del ABM y de Auth/Profiles. Esta acción no se puede deshacer.' : 'Se eliminará el registro seleccionado.', showCancelButton: true, confirmButtonText: 'Eliminar definitivamente', cancelButtonText: 'Cancelar' });
   if (!result.isConfirmed) return;
   try {
@@ -1138,9 +1173,9 @@ function attachViewEvents() {
   document.getElementById('inventoryTypeFilter')?.addEventListener('change', e => { state.filters.inventoryType = e.target.value; state.inventoryPage = 1; renderView(); });
   document.getElementById('generateBarcodeBtn')?.addEventListener('click', generateBarcode);
   document.getElementById('printBarcodesBtn')?.addEventListener('click', () => printInventoryBarcodes(getFilteredInventory()));
-  document.getElementById('inventoryPageSize')?.addEventListener('change', e => { state.inventoryPageSize = Number(e.target.value) || 10; state.inventoryPage = 1; renderView(); });
-  document.getElementById('inventoryPrevPage')?.addEventListener('click', () => { state.inventoryPage = Math.max(1, state.inventoryPage - 1); renderView(); });
-  document.getElementById('inventoryNextPage')?.addEventListener('click', () => { state.inventoryPage += 1; renderView(); });
+  document.querySelectorAll('.inventory-page-size').forEach(el => el.addEventListener('change', e => { state.inventoryPageSize = Number(e.target.value) || 10; state.inventoryPage = 1; renderView(); }));
+  document.querySelectorAll('.inventory-prev-page').forEach(el => el.addEventListener('click', () => { state.inventoryPage = Math.max(1, state.inventoryPage - 1); renderView(); }));
+  document.querySelectorAll('.inventory-next-page').forEach(el => el.addEventListener('click', () => { const totalPages = Math.max(1, Math.ceil(getFilteredInventory().length / state.inventoryPageSize)); state.inventoryPage = Math.min(totalPages, state.inventoryPage + 1); renderView(); }));
   document.getElementById('inventoryChartsBtn')?.addEventListener('click', () => openInventoryCharts());
   appContent.querySelectorAll('[data-print-barcode]').forEach(btn => btn.addEventListener('click', () => { const item = state.inventory.find(x => String(x.id) === String(btn.dataset.printBarcode)); if (item) printInventoryBarcodes([item]); }));
   document.getElementById('newInventoryItemBtn')?.addEventListener('click', openInventoryAssetForm);
@@ -1214,13 +1249,14 @@ function bindEvents() {
 async function refreshSupabaseData() {
   if (!window.sb?.enabled) return;
   try {
-    const [profile, users, inventory, teams, loans, roles] = await Promise.all([
+    const [profile, users, inventory, teams, loans, roles, notifications] = await Promise.all([
       window.sb.fetchProfile().catch(() => null),
       window.sb.listProfiles().catch(() => null),
       window.sb.listInventory().catch(() => null),
       window.sb.listTeams?.().catch(() => null),
       window.sb.listLoans?.().catch(() => null),
-      window.sb.listRoles?.().catch(() => null)
+      window.sb.listRoles?.().catch(() => null),
+      window.sb.listNotifications?.().catch(() => null)
     ]);
     if (profile) {
       state.user = profile;
@@ -1232,6 +1268,7 @@ async function refreshSupabaseData() {
     if (Array.isArray(teams) && teams.length) state.teams = teams;
     if (Array.isArray(loans) && loans.length) state.loans = loans;
     if (Array.isArray(roles) && roles.length) state.rolesData = roles;
+    if (Array.isArray(notifications)) state.notifications = notifications;
   } catch (error) {
     console.error(error);
     showToast('Supabase', error.message || 'No se pudieron cargar los datos conectados');
@@ -1299,7 +1336,21 @@ async function openInventoryAssetForm(row = null) {
       const btn = document.getElementById('addConditionBtn');
       if (btn) btn.addEventListener('click', async () => {
         const r = await Swal.fire({ title:'Nueva condición', html:'<input id="newCondName" class="swal2-input" placeholder="Ej. Reparado"><input id="newCondColor" type="color" class="swal2-input" value="#3b82f6">', showCancelButton:true, confirmButtonText:'Agregar', preConfirm:()=>({name:document.getElementById('newCondName').value.trim(), color:document.getElementById('newCondColor').value}) });
-        if (r.isConfirmed && r.value.name) { addLocalCondition(r.value.name, r.value.color); const sel=document.getElementById('assetCondition'); if(sel){ sel.insertAdjacentHTML('beforeend', `<option value="${escapeAttr(r.value.name)}">${escapeHtml(r.value.name)}</option>`); sel.value=r.value.name; } }
+        if (r.isConfirmed && r.value.name) {
+          const cleanName = r.value.name.trim();
+          const cleanColor = r.value.color || '#64748b';
+          addLocalCondition(cleanName, cleanColor);
+          if (window.sb?.enabled) {
+            try { await window.sb.saveInventoryCondition(cleanName, cleanColor); }
+            catch (err) { return Swal.fire({ icon:'error', title:'No se pudo guardar la condición', text: err.message || String(err) }); }
+          }
+          const sel=document.getElementById('assetCondition');
+          if(sel){
+            const exists = Array.from(sel.options).some(o => o.value.toLowerCase() === cleanName.toLowerCase());
+            if (!exists) sel.insertAdjacentHTML('beforeend', `<option value="${escapeAttr(cleanName)}">${escapeHtml(cleanName)}</option>`);
+            sel.value=cleanName;
+          }
+        }
       });
     },
     confirmButtonText: isEdit ? 'Guardar cambios' : 'Guardar',

@@ -1,12 +1,11 @@
-const CACHE = 'ism-robosoft-v6-5';
-const ASSETS = [
-  './', './index.html', './app.html', './styles.css', './auth.js', './js/app.js?v=6.5',
-  './js/config.js?v=6.5',
-  './js/supabaseClient.js?v=6.5', './supabase.js', './config.example.js', './manifest.webmanifest', './assets/logo.svg', './assets/avatar-default.svg'
+const CACHE = 'ism-robosoft-v9-6';
+const STATIC_ASSETS = [
+  './', './index.html', './app.html', './styles.css', './manifest.webmanifest',
+  './assets/logo.svg', './assets/avatar-default.svg', './assets/img/logo-Coordinacion-Robotica.png'
 ];
 
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)));
+  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(STATIC_ASSETS)).catch(() => null));
   self.skipWaiting();
 });
 
@@ -19,9 +18,17 @@ self.addEventListener('activate', event => {
 
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
-  event.respondWith(caches.match(event.request).then(res => res || fetch(event.request).then(networkRes => {
-    const copy = networkRes.clone();
-    caches.open(CACHE).then(cache => cache.put(event.request, copy));
-    return networkRes;
-  }).catch(() => caches.match('./index.html'))));
+  const url = new URL(event.request.url);
+  const isRuntimeConfig = url.pathname.endsWith('/js/config.js') || url.pathname.endsWith('/js/supabaseClient.js') || url.pathname.endsWith('/auth.js') || url.pathname.endsWith('/js/app.js');
+  if (isRuntimeConfig) {
+    event.respondWith(fetch(event.request, { cache: 'no-store' }).catch(() => caches.match(event.request)));
+    return;
+  }
+  event.respondWith(
+    fetch(event.request).then(networkRes => {
+      const copy = networkRes.clone();
+      if (url.origin === self.location.origin) caches.open(CACHE).then(cache => cache.put(event.request, copy)).catch(() => null);
+      return networkRes;
+    }).catch(() => caches.match(event.request).then(res => res || caches.match('./index.html')))
+  );
 });

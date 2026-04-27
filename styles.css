@@ -460,3 +460,5 @@ body.light .inventory-table th { color: #19253b; }
 .auth-single .badge { margin: 0 auto; }
 .auth-demo-collapsed { border-top: 1px solid var(--border); padding-top: 14px; }
 @media (max-width: 860px) { .auth-links-row, .demo-grid { grid-template-columns: 1fr; } }
+
+.avatar-edit-box{display:flex;align-items:center;gap:12px;margin:8px 0}.avatar-edit-box img{width:72px;height:72px;border-radius:18px;object-fit:cover;border:1px solid var(--border);background:var(--panel-soft)}.avatar-edit-box input[type=file]{width:100%;padding:10px;border:1px solid var(--border);border-radius:12px;background:var(--panel-soft);color:var(--text)}

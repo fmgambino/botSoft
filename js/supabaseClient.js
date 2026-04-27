@@ -48,6 +48,12 @@ function getPublicBaseUrl() {
       student_ids: row.student_ids || []
     };
   }
+  function normalizeCurrentUser(row) {
+    const profile = normalizeProfile(row);
+    const code = profile.role_code || (profile.role === 'Administrador' ? 'administrator' : profile.role === 'Docente' ? 'teacher' : profile.role === 'Alumno' ? 'student' : 'student');
+    return { ...profile, role: code, role_label: roleLabel[code] || profile.role || 'Alumno' };
+  }
+
   function normalizeInventory(row) {
     return {
       id: row.id,
@@ -122,13 +128,19 @@ async sendPasswordReset(email) {
       const roleCode = roleCodeFromLabel[payload.role] || payload.role || 'student';
       const base = getPublicBaseUrl();
       const body = { ...payload, email, role_code: roleCode, redirect_to: `${base}/reset-password.html` };
-      try {
-        const { data, error } = await assertClient().functions.invoke('admin-create-user', { body });
-        if (error) throw error;
-        return data;
-      } catch (fnError) {
-        throw new Error('No está desplegada la Edge Function admin-create-user o falta SERVICE_ROLE_KEY. Revisá README_AUTH_V8_5.md. Detalle: ' + (fnError.message || fnError));
+      const functionNames = ['admin-create-user', 'rapid-service'];
+      const errors = [];
+      for (const fnName of functionNames) {
+        try {
+          const { data, error } = await assertClient().functions.invoke(fnName, { body });
+          if (error) throw error;
+          if (data?.error) throw new Error(data.error);
+          return data;
+        } catch (fnError) {
+          errors.push(`${fnName}: ${fnError.message || fnError}`);
+        }
       }
+      throw new Error('No se pudo invocar la Edge Function para crear usuarios. Verificá que exista admin-create-user o rapid-service, que esté deployada y que los secrets SERVICE_ROLE_KEY / SUPABASE_ANON_KEY / SUPABASE_URL estén cargados. Detalle: ' + errors.join(' | '));
     },
 
     async fetchProfile() {
@@ -143,8 +155,8 @@ async sendPasswordReset(email) {
         .eq('id', user.id)
         .maybeSingle();
       if (error) throw error;
-      if (!data) return normalizeProfile({ id: user.id, full_name: user.email?.split('@')[0], email: user.email, role_code: 'administrator' });
-      return normalizeProfile({ ...data, email: user.email });
+      if (!data) return normalizeCurrentUser({ id: user.id, full_name: user.email?.split('@')[0], email: user.email, role_code: 'administrator' });
+      return normalizeCurrentUser({ ...data, email: user.email });
     },
     async listProfiles() {
       const { data, error } = await assertClient()
@@ -203,7 +215,7 @@ async sendPasswordReset(email) {
         role_id: roleId || undefined,
         dni: payload.dni || null,
         whatsapp: payload.whatsapp || null,
-        avatar_url: payload.avatar_url || null,
+        avatar_url: payload.avatar_url || undefined,
         birth_date: payload.birth_date || null,
         title: (roleCode === 'student') ? null : (payload.title || null),
         is_active: payload.status !== 'Inactivo',
@@ -271,6 +283,32 @@ async sendPasswordReset(email) {
       const { error } = await assertClient().from('roles').delete().eq('id', id).eq('is_system', false);
       if (error) throw error;
     },
+    async saveInventoryCondition(name, color = '#64748b') {
+      const cleanName = String(name || '').trim().replace(/\s+/g, ' ');
+      const cleanColor = /^#[0-9a-f]{6}$/i.test(String(color || '').trim()) ? String(color).trim() : '#64748b';
+      if (!cleanName) throw new Error('Ingresá el nombre de la condición');
+      const { data: existing, error: findError } = await assertClient()
+        .from('inventory_conditions')
+        .select('id')
+        .ilike('name', cleanName)
+        .maybeSingle();
+      if (findError) throw findError;
+      if (existing?.id) {
+        const { error } = await assertClient()
+          .from('inventory_conditions')
+          .update({ color: cleanColor, is_active: true, updated_at: new Date().toISOString() })
+          .eq('id', existing.id);
+        if (error) throw error;
+        return existing.id;
+      }
+      const { data, error } = await assertClient()
+        .from('inventory_conditions')
+        .insert({ name: cleanName, color: cleanColor, is_active: true })
+        .select('id')
+        .single();
+      if (error) throw error;
+      return data?.id;
+    },
     async updateInventoryAsset(id, payload) {
       const { error } = await assertClient().rpc('admin_update_inventory_asset', {
         p_asset_id: id,
@@ -296,11 +334,31 @@ async sendPasswordReset(email) {
     async listLoans() {
       const { data, error } = await assertClient().from('loans_frontend_view').select('*').order('created_at', { ascending: false });
       if (error) throw error;
-      return (data || []).map(l => ({ id:l.id, requester:l.requester || '-', team:l.team || '-', date:(l.requested_at||'').slice(0,10), from:l.from_time || '-', to:l.to_time || '-', items:l.items || [], notes:l.notes || '-', status:l.status_label || l.status }));
+      return (data || []).map(l => ({ id:l.id, requester_id:l.requester_id || l.requester_profile_id, requester:l.requester || '-', team:l.team || '-', date:(l.requested_at||l.use_date||'').slice(0,10), from:l.from_time || '-', to:l.to_time || '-', items:l.items || [], notes:l.notes || '-', status:l.status_label || l.status }));
     },
     async updateLoanStatus(id, status) {
       const { error } = await assertClient().rpc('admin_update_loan_status', { p_loan_id: id, p_status_label: status });
       if (error) throw error;
+    },
+    async createLoanRequest(payload) {
+      const { data, error } = await assertClient().rpc('create_loan_request', {
+        p_team: payload.course,
+        p_use_date: payload.date,
+        p_from_time: payload.from,
+        p_to_time: payload.to,
+        p_items: payload.selected || [],
+        p_notes: payload.notes || null
+      });
+      if (error) throw error;
+      return data;
+    },
+    async listNotifications() {
+      const { data, error } = await assertClient()
+        .from('notifications_frontend_view')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data || []).map(n => ({ id:n.id, title:n.title, message:n.message, unread: !n.read_at, section:n.section || 'notifications', created_at:n.created_at }));
     },
 
     async listInventory() {

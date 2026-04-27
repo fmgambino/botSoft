@@ -36,9 +36,9 @@
   </main>
   <footer class="site-footer modern-footer"><div class="footer-brand">ISM ROBOSOFT© 2026</div><div class="footer-copy">Tucumán · Argentina · by <a href="https://electronicagambino.com" rel="noopener" target="_blank">Ing. Fernando Gambino</a></div><div class="footer-rights">Todos los Derechos Registrados · @ Cafecito</div></footer>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="./js/config.js?v=8.7"></script>
-  <script src="./js/supabaseClient.js?v=8.7"></script>
-  <script>if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(console.error));</script>
-  <script src="./auth.js?v=8.7"></script>
+  <script src="./js/config.js?v=9.7"></script>
+  <script src="./js/supabaseClient.js?v=9.7"></script>
+  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations?.().then(rs => rs.forEach(r => r.unregister())).catch(()=>{});</script>
+  <script src="./auth.js?v=9.7"></script>
 </body>
 </html>
