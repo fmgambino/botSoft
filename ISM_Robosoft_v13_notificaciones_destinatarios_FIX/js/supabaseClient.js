@@ -283,16 +283,6 @@ async sendPasswordReset(email) {
       const { error } = await assertClient().from('roles').delete().eq('id', id).eq('is_system', false);
       if (error) throw error;
     },
-    async listInventoryConditions() {
-      const { data, error } = await assertClient()
-        .from('inventory_conditions')
-        .select('id, name, color, sort_order, is_active')
-        .eq('is_active', true)
-        .order('sort_order', { ascending: true })
-        .order('name', { ascending: true });
-      if (error) throw error;
-      return (data || []).map(c => ({ id: c.id, name: c.name, color: c.color || '#64748b' }));
-    },
     async saveInventoryCondition(name, color = '#64748b') {
       const cleanName = String(name || '').trim().replace(/\s+/g, ' ');
       const cleanColor = /^#[0-9a-f]{6}$/i.test(String(color || '').trim()) ? String(color).trim() : '#64748b';

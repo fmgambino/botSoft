@@ -968,7 +968,6 @@ async function openNotificationComposer() {
       await window.sb.sendNotification(payload);
       const notifications = await window.sb.listNotifications?.().catch(() => null);
       if (Array.isArray(notifications)) state.notifications = notifications;
-    if (Array.isArray(conditions) && conditions.length) state.inventoryConditions = conditions;
     } else {
       state.notifications.unshift({ id: Date.now(), title: payload.title, message: `${payload.message} (${notificationTargetLabel(payload.target)})`, unread: true, section: 'notifications' });
     }
@@ -1309,15 +1308,14 @@ function bindEvents() {
 async function refreshSupabaseData() {
   if (!window.sb?.enabled) return;
   try {
-    const [profile, users, inventory, teams, loans, roles, notifications, conditions] = await Promise.all([
+    const [profile, users, inventory, teams, loans, roles, notifications] = await Promise.all([
       window.sb.fetchProfile().catch(() => null),
       window.sb.listProfiles().catch(() => null),
       window.sb.listInventory().catch(() => null),
       window.sb.listTeams?.().catch(() => null),
       window.sb.listLoans?.().catch(() => null),
       window.sb.listRoles?.().catch(() => null),
-      window.sb.listNotifications?.().catch(() => null),
-      window.sb.listInventoryConditions?.().catch(() => null)
+      window.sb.listNotifications?.().catch(() => null)
     ]);
     if (profile) {
       state.user = profile;
@@ -1390,7 +1388,7 @@ async function openInventoryAssetForm(row = null) {
       <label><span>Locación física</span><input id="assetLocationDetail" class="swal2-input" value="${escapeAttr(row?.location_detail || '')}" placeholder="Gabinete, Maletín, Cajón"></label>
       <label><span>Zona</span><input id="assetZone" class="swal2-input" value="${escapeAttr(row?.zone || '')}" placeholder="Ej. A1, A2, B3"></label>
       <label><span>Estado</span><select id="assetStatus" class="swal2-select"><option ${row?.status === 'Disponible' ? 'selected' : ''}>Disponible</option><option ${row?.status === 'Prestado' ? 'selected' : ''}>Prestado</option><option ${row?.status === 'En mantenimiento' ? 'selected' : ''}>En mantenimiento</option></select></label>
-      <label class="full-span"><span>Condición <button type="button" id="addConditionBtn" class="mini-plus" title="Agregar condición">+</button> <button type="button" id="editConditionColorBtn" class="mini-plus" title="Editar color">🎨</button></span><select id="assetCondition" class="swal2-select">${state.inventoryConditions.map(c => `<option value="${escapeAttr(c.name)}" ${String(row?.condition || '').toLowerCase()===c.name.toLowerCase()?'selected':''}>${escapeHtml(c.name)}</option>`).join('')}<option value="${escapeAttr(row?.condition || '')}" ${row?.condition && !state.inventoryConditions.some(c => c.name.toLowerCase()===String(row.condition).toLowerCase()) ? 'selected' : ''}>${escapeHtml(row?.condition || 'Sin condición')}</option></select><small class="form-help">Usá + para crear una condición. Usá 🎨 para editar el color de la condición seleccionada.</small></label>
+      <label class="full-span"><span>Condición <button type="button" id="addConditionBtn" class="mini-plus" title="Agregar condición">+</button></span><select id="assetCondition" class="swal2-select">${state.inventoryConditions.map(c => `<option value="${escapeAttr(c.name)}" ${String(row?.condition || '').toLowerCase()===c.name.toLowerCase()?'selected':''}>${escapeHtml(c.name)}</option>`).join('')}<option value="${escapeAttr(row?.condition || '')}" ${row?.condition && !state.inventoryConditions.some(c => c.name.toLowerCase()===String(row.condition).toLowerCase()) ? 'selected' : ''}>${escapeHtml(row?.condition || 'Sin condición')}</option></select><small class="form-help">Usá + para crear una condición y asignarle color.</small></label>
     </div>`,
     showCancelButton: true,
     didOpen: () => {
@@ -1411,23 +1409,6 @@ async function openInventoryAssetForm(row = null) {
             if (!exists) sel.insertAdjacentHTML('beforeend', `<option value="${escapeAttr(cleanName)}">${escapeHtml(cleanName)}</option>`);
             sel.value=cleanName;
           }
-        }
-      });
-      const editBtn = document.getElementById('editConditionColorBtn');
-      if (editBtn) editBtn.addEventListener('click', async () => {
-        const sel = document.getElementById('assetCondition');
-        const name = String(sel?.value || '').trim();
-        if (!name) return Swal.fire({ icon:'info', title:'Seleccioná una condición' });
-        const current = (state.inventoryConditions || []).find(c => c.name.toLowerCase() === name.toLowerCase());
-        const r = await Swal.fire({ title:'Editar color de condición', html:`<p class="muted">${escapeHtml(name)}</p><input id="editCondColor" type="color" class="swal2-input" value="${escapeAttr(current?.color || '#64748b')}">`, showCancelButton:true, confirmButtonText:'Guardar color', preConfirm:()=>({ color:document.getElementById('editCondColor').value }) });
-        if (r.isConfirmed) {
-          const cleanColor = r.value.color || '#64748b';
-          upsertLocalCondition(name, cleanColor);
-          if (window.sb?.enabled) {
-            try { await window.sb.saveInventoryCondition(name, cleanColor); }
-            catch (err) { return Swal.fire({ icon:'error', title:'No se pudo actualizar el color', text: err.message || String(err) }); }
-          }
-          showToast('Condición', 'Color actualizado correctamente');
         }
       });
     },
