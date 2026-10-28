@@ -36,3 +36,19 @@ loginForm?.addEventListener('submit', async (e) => {
     console.error('Login Supabase:', error);
   }
 });
+
+// Google OAuth: la autorización de acceso sigue dependiendo del perfil activo.
+document.getElementById('googleLoginBtn')?.addEventListener('click', async () => {
+  try { setMsg('Redirigiendo a Google…'); await window.sb.signInWithGoogle(); }
+  catch (e) { setMsg(e.message || 'No se pudo iniciar sesión con Google.', 'error'); }
+});
+(async () => {
+  try {
+    if (!window.sb?.enabled) return;
+    const { data } = await window.sb.getSession();
+    if (!data?.session) return;
+    const profile = await window.sb.fetchProfile();
+    if (profile?.status === 'Activo') window.location.replace('./app.html');
+    else { await window.sb.signOut(); setMsg('Tu cuenta necesita autorización administrativa para ingresar.', 'error'); }
+  } catch(e) { console.warn('Verificación OAuth:', e); }
+})();

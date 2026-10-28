@@ -135,6 +135,12 @@ function getPublicBaseUrl() {
     client,
     client,
     isReady: () => enabled,
+    async signInWithGoogle() {
+      const redirectTo = `${getPublicBaseUrl()}/index.html`;
+      const { data, error } = await assertClient().auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
+      if (error) throw error;
+      return data;
+    },
     async signIn(email, password) {
       const { data, error } = await assertClient().auth.signInWithPassword({ email, password });
       if (error) throw error;
@@ -212,6 +218,21 @@ async sendPasswordReset(email) {
       if (!data) return normalizeCurrentUser({ id: user.id, full_name: user.email?.split('@')[0], email: user.email, role_code: 'administrator' });
       return normalizeCurrentUser({ ...data, email: user.email });
     },
+    async adminUserEmails(action, userId, email) {
+      const { data: { session }, error: sessionError } = await assertClient().auth.getSession();
+      if (sessionError || !session?.access_token) throw new Error('Iniciá sesión para gestionar usuarios.');
+      const { data, error } = await assertClient().functions.invoke('ism-admin-user-email', {
+        body: { action, user_id: userId || undefined, email: email || undefined },
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      });
+      if (error) {
+        let detail = error.message;
+        try { const body = await error.context?.json(); detail = body?.error || body?.message || detail; } catch (_) {}
+        throw new Error(detail || 'No se pudo consultar Supabase Auth');
+      }
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
     async listProfiles() {
       const client = assertClient();
       let res = await client.from('users_abm_view').select('*').order('created_at', { ascending: false });
@@ -222,7 +243,17 @@ async sendPasswordReset(email) {
           .order('created_at', { ascending: false });
       }
       if (res.error) throw res.error;
-      return (res.data || []).map(normalizeProfile);
+      const profiles = (res.data || []).map(normalizeProfile);
+      // El email de acceso está en auth.users, no en public.profiles.
+      // El listado seguro se obtiene mediante una función administrativa protegida.
+      try {
+        const result = await this.adminUserEmails('list');
+        const emails = new Map((result.users || []).map(u => [String(u.id), u.email || '']));
+        profiles.forEach(p => { p.email = emails.get(String(p.id)) || p.email || ''; });
+      } catch (err) {
+        console.warn('No se pudo consultar el correo de Auth:', err.message);
+      }
+      return profiles;
     },
     async updateProfile(id, payload) {
       const body = {

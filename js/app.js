@@ -375,6 +375,7 @@ function actionButtons(type = "", id = "") {
   const deleteTitle = demo ? "Acción deshabilitada en demo" : (inventoryRestricted ? "Solo administrador puede eliminar insumos" : "Eliminar");
   return `<div class="actions">
     <button class="action-btn" data-action="view" data-type="${type}" data-id="${id}" title="Ver">${icons.eye}</button>
+    ${type === 'user' && state.user.role === 'administrator' ? `<button class="action-btn" data-user-email-menu="${escapeAttr(id)}" title="Reenviar correo">✉</button>` : ''}
     ${type === 'inventory' ? `<button class="action-btn" data-action="duplicate" data-type="${type}" data-id="${id}" ${locked} title="Duplicar insumo/equipo">${icons.copy}</button>` : ''}
     <button class="action-btn" data-action="edit" data-type="${type}" data-id="${id}" ${locked} title="${editTitle}">${icons.edit}</button>
     <button class="action-btn" data-action="delete" data-type="${type}" data-id="${id}" ${locked} title="${deleteTitle}">${icons.trash}</button>
@@ -546,10 +547,10 @@ function renderTeams() {
 }
 
 function getFilteredInventory() {
-  return state.inventory.filter(item => {
+  return [...state.inventory, ...(state.inventoryGroupRows || [])].filter(item => {
     const byStatus = state.filters.inventoryState === 'all' || item.status === state.filters.inventoryState;
     const byType = state.filters.inventoryType === 'all' || item.type === state.filters.inventoryType;
-    const bySearch = !state.filters.inventorySearch || `${item.code} ${item.item} ${item.serial} ${item.barcode} ${item.location} ${item.brand || ''} ${item.supplier || ''} ${item.location_detail || ''} ${item.zone || ''} ${item.category || ''}`.toLowerCase().includes(state.filters.inventorySearch.toLowerCase());
+    const bySearch = !state.filters.inventorySearch || `${item.code} ${item.item} ${item.serial} ${item.barcode} ${item.location} ${item.brand || ''} ${item.supplier || ''} ${item.location_detail || ''} ${item.zone || ''} ${item.category || ''} `.toLowerCase().includes(state.filters.inventorySearch.toLowerCase());
     return byStatus && byType && bySearch;
   });
 }
@@ -569,16 +570,17 @@ function renderInventory() {
           <div><h3>Control y trazabilidad</h3><p class="muted">Cada insumo permite saber quién lo tiene, marca, empresa/proveedor, locación, zona, estado y código de barras.</p></div>
           <div class="toolbar">
             <button class="btn btn-secondary btn-sm" data-import="inventory">${icons.import} Importar CSV</button>
-            <button class="btn btn-secondary btn-sm" data-export="inventory">${icons.export} Exportar CSV</button>
+            <button class="btn btn-secondary btn-sm" id="inventoryExportFiltered">${icons.export} Exportar filtrado</button><button class="btn btn-secondary btn-sm" id="inventoryExportAll">${icons.export} Exportar todo</button>
             <button class="btn btn-secondary btn-sm" id="printBarcodesBtn">${icons.barcode} Imprimir barcodes</button>
             <button class="btn btn-secondary btn-sm" id="inventoryChartsBtn">${icons.chart} Ver gráficos</button>
+            ${state.user.role === 'administrator' ? '<button class="btn btn-secondary btn-sm" id="inventoryGroupsBtn">Agrupaciones de insumos</button>' : ''}
             ${teacherActions}
           </div>
         </div>
         <div class="toolbar filters-row">
           <input type="search" id="inventorySearch" placeholder="Buscar por código, item, marca, empresa, serie, barcode, locación o zona" value="${escapeAttr(state.filters.inventorySearch)}" autocomplete="off" />
           <select id="inventoryStateFilter"><option value="all" ${state.filters.inventoryState === 'all' ? 'selected' : ''}>Todos los estados</option><option ${state.filters.inventoryState === 'Disponible' ? 'selected' : ''}>Disponible</option><option ${state.filters.inventoryState === 'Prestado' ? 'selected' : ''}>Prestado</option><option ${state.filters.inventoryState === 'En mantenimiento' ? 'selected' : ''}>En mantenimiento</option></select>
-          <select id="inventoryTypeFilter"><option value="all" ${state.filters.inventoryType === 'all' ? 'selected' : ''}>Todos los tipos</option><option ${state.filters.inventoryType === 'Equipo' ? 'selected' : ''}>Equipo</option><option ${state.filters.inventoryType === 'Insumo' ? 'selected' : ''}>Insumo</option></select>
+          <select id="inventoryTypeFilter"><option value="all" ${state.filters.inventoryType === 'all' ? 'selected' : ''}>Todos los tipos</option><option ${state.filters.inventoryType === 'Equipo' ? 'selected' : ''}>Equipo</option><option ${state.filters.inventoryType === 'Insumo' ? 'selected' : ''}>Insumo</option><option ${state.filters.inventoryType === 'Agrupación' ? 'selected' : ''}>Agrupación</option></select>
         </div>
         <div class="toolbar filters-row">
           <button class="btn btn-secondary btn-sm" id="generateBarcodeBtn">${icons.barcode} Generar código</button>
@@ -590,7 +592,7 @@ function renderInventory() {
           <table class="table inventory-table">
             <thead><tr><th><input type="checkbox" id="inventorySelectAll"></th><th>Código</th><th>Tipo</th><th>Marca</th><th>Empresa</th><th>N° serie</th><th>Barcode</th><th>Estado</th><th>Condición</th><th>Locación</th><th>Zona</th><th>Ubicación</th><th>Acciones</th></tr></thead>
             <tbody>
-              ${rows.map(item => `<tr><td><input type="checkbox" class="inventory-row-check" data-id="${escapeAttr(item.id)}" ${state.selectedInventoryIds?.has(String(item.id)) ? 'checked' : ''}></td><td><div class="inventory-item-cell">${item.image_url ? `<button type="button" class="inventory-thumb-btn" data-image-src="${escapeAttr(item.image_url)}" data-image-title="${escapeAttr(item.code + ' - ' + item.item)}"><img class="inventory-thumb" src="${escapeAttr(item.image_url)}" onerror="this.style.display='none'" alt="Foto"></button>` : ''}<div><strong>${escapeHtml(item.code)}</strong><br><span class="muted small">${escapeHtml(item.item)}</span></div></div></td><td>${escapeHtml(item.type)}</td><td>${escapeHtml(item.brand || '-')}</td><td>${escapeHtml(item.supplier || '-')}</td><td>${escapeHtml(item.serial || 'Sin serie')}</td><td><button class="barcode-cell barcode-print-btn" data-print-barcode="${escapeAttr(item.id)}" title="Imprimir barcode">${barcodePreviewMarkup(item.barcode || item.code, true)}</button></td><td>${statusPill(item.status)}</td><td>${conditionPill(item.condition)}</td><td>${escapeHtml(item.location_detail || '-')}</td><td>${escapeHtml(item.zone || '-')}</td><td>${escapeHtml(item.location)}</td><td>${actionButtons('inventory', item.id)}</td></tr>`).join('') || `<tr><td colspan="13" class="muted">Sin resultados.</td></tr>`}
+              ${rows.map(item => `<tr class="${item.is_group?'ism-group-inventory-row':''}" style="${item.is_group?'--ism-group-color:'+escapeAttr(item.color||'#8b5cf6'):''}"><td>${item.is_group?'●':`<input type="checkbox" class="inventory-row-check" data-id="${escapeAttr(item.id)}" ${state.selectedInventoryIds?.has(String(item.id)) ? 'checked' : ''}>`}</td><td><div class="inventory-item-cell">${item.image_url ? `<button type="button" class="inventory-thumb-btn" data-image-src="${escapeAttr(item.image_url)}" data-image-title="${escapeAttr(item.code + ' - ' + item.item)}"><img class="inventory-thumb" src="${escapeAttr(item.image_url)}" onerror="this.style.display='none'" alt="Foto"></button>` : ''}<div><strong>${escapeHtml(item.code)}</strong><br><span class="muted small">${escapeHtml(item.item)}</span>${item.group_name?`<br><span class="tag">Agrupado: ${escapeHtml(item.group_name)}</span>`:''}${item.is_group?`<br><span class="tag" style="border-color:${escapeAttr(item.color)};color:${escapeAttr(item.color)}">${item.component_count} componentes</span>`:''}</div></div></td><td>${escapeHtml(item.type)}</td><td>${escapeHtml(item.brand || '-')}</td><td>${escapeHtml(item.supplier || '-')}</td><td>${escapeHtml(item.serial || 'Sin serie')}</td><td><button class="barcode-cell barcode-print-btn" data-print-barcode="${escapeAttr(item.id)}" title="Imprimir barcode">${barcodePreviewMarkup(item.barcode || item.code, true)}</button></td><td>${statusPill(item.status)}</td><td>${conditionPill(item.condition)}</td><td>${escapeHtml(item.location_detail || '-')}</td><td>${escapeHtml(item.zone || '-')}</td><td>${escapeHtml(item.location)}</td><td>${item.is_group?`<button class="btn btn-secondary btn-sm" data-ism-group-view="${escapeAttr(item.group_id)}" title="Ver detalle">${icons.eye}</button>${state.user.role==='administrator'?`<button class="btn btn-secondary btn-sm" data-ism-group-edit="${escapeAttr(item.group_id)}" title="Editar agrupación">${icons.edit}</button><button class="btn btn-secondary btn-sm" data-ism-group-delete="${escapeAttr(item.group_id)}" title="Eliminar agrupación">${icons.trash}</button>`:''}`:actionButtons('inventory', item.id)}</td></tr>`).join('') || `<tr><td colspan="13" class="muted">Sin resultados.</td></tr>`}
             </tbody>
           </table>
         </div>
@@ -1108,7 +1110,19 @@ async function openNotificationComposer() {
 }
 
 async function openLoanRequest() {
-  const items = state.inventory.filter(i => i.status === 'Disponible').map(i => `<option value="${i.code}">${i.code} · ${i.item}</option>`).join('');
+  let loanGroups=[];
+  if(window.sb?.enabled){
+    const {data:g,error:ge}=await window.sb.client.from('inventory_groups').select('id,name,color,inventory_group_members(asset_id,inventory_assets(asset_code))');
+    if(ge) return Swal.fire('Error al cargar agrupaciones',ge.message,'error');
+    loanGroups=g||[];
+  }
+  const availableAssets = state.inventory.filter(i => i.status === 'Disponible');
+  const groupOptions = loanGroups.map(g => {
+    const members=g.inventory_group_members||[];
+    const allAvailable=members.length>0 && members.every(m=>availableAssets.some(a=>a.code===m.inventory_assets?.asset_code));
+    return `<option value="group:${escapeAttr(g.id)}" ${!allAvailable?'disabled':''} style="color:${escapeAttr(g.color||'#8b5cf6')};font-weight:700;background-color:#18243d">● ${escapeHtml(g.name)} · ${members.length} componentes${allAvailable?'':' (no disponible)'}</option>`;
+  }).join('');
+  const items = groupOptions + availableAssets.map(i => `<option value="asset:${escapeAttr(i.code)}">${escapeHtml(i.code)} · ${escapeHtml(i.item)}</option>`).join('');
   const result = await Swal.fire({
     title: 'Solicitud de préstamo', width: 860, confirmButtonText: 'Solicitar',
     html: `<div class="swal-form-grid"><label><span>Curso / equipo</span><input id="loanCourse" class="swal2-input" placeholder="Ej. Equipo Rover A / 6°C"></label><label><span>Fecha de uso</span><input id="loanDate" type="date" class="swal2-input"></label><label><span>Hora desde</span><input id="loanFrom" type="time" class="swal2-input"></label><label><span>Hora hasta</span><input id="loanTo" type="time" class="swal2-input"></label><label class="full-span"><span>Insumos (1 o más)</span><select id="loanItems" class="swal2-select" multiple size="6">${items}</select></label><label class="full-span"><span>Observaciones</span><textarea id="loanObs" class="swal2-textarea" placeholder="Detalle del pedido y condición esperada"></textarea></label></div>`,
@@ -1117,8 +1131,12 @@ async function openLoanRequest() {
       const date = document.getElementById('loanDate').value;
       const from = document.getElementById('loanFrom').value;
       const to = document.getElementById('loanTo').value;
-      const selected = [...document.getElementById('loanItems').selectedOptions].map(o => o.value);
-      const notes = document.getElementById('loanObs').value.trim();
+      const picked = [...document.getElementById('loanItems').selectedOptions].map(o => o.value);
+      const selected = picked.filter(v=>v.startsWith('asset:')).map(v=>v.slice(6));
+      const groupIds=picked.filter(v=>v.startsWith('group:')).map(v=>v.slice(6));
+      const selectedGroups=loanGroups.filter(g=>groupIds.includes(g.id));
+      for(const group of selectedGroups){for(const m of (group.inventory_group_members||[])){const code=m.inventory_assets?.asset_code;if(code&&!selected.includes(code))selected.push(code)}}
+      const notes = document.getElementById('loanObs').value.trim() + (selectedGroups.length?'\nAgrupaciones: '+selectedGroups.map(g=>g.name).join(', '):'');
       if (!course || !date || !from || !to || !selected.length) { Swal.showValidationMessage('Completá curso/equipo, fecha, franja horaria y al menos un insumo.'); return false; }
       return { course, date, from, to, selected, notes };
     }
@@ -1300,6 +1318,7 @@ function profileChip(person, fallbackRole='Integrante') {
 }
 
 function viewRecord(type, row) {
+  if(type==='inventory' && row.is_group)return viewInventoryGroup(row.group_id);
   const title = type === 'user' ? 'Detalle de usuario' : type === 'inventory' ? 'Detalle de inventario' : 'Detalle de equipo';
   if (type === 'team') {
     const mentors = (row.teacher_people && row.teacher_people.length) ? row.teacher_people : (row.teachers || []).map(name => ({ name, avatar_url:'./assets/avatar-default.svg' }));
@@ -1359,7 +1378,7 @@ async function editUserRecord(row) {
     title: 'Editar usuario', width: 900,
     html: `<div class="swal-form-grid">
       <label><span>Nombre completo</span><input id="editName" class="swal2-input" value="${escapeHtml(row.name)}"></label>
-      <label><span>Email</span><input id="editEmail" class="swal2-input" value="${escapeHtml(row.email)}" disabled></label>
+      <label><span>Email</span><input id="editEmail" class="swal2-input" value="${escapeAttr(row.email || '')}" type="email" autocomplete="off" required title="Correo de acceso administrado de forma segura en Supabase Auth"></label>
       <label><span>Rol</span>${roleControl}<small class="form-help">${lockedStudent ? 'Tu rol de alumno no puede modificarse desde Mi perfil.' : 'Solo el administrador puede cambiar roles.'}</small></label>
       <label><span>Estado</span><select id="editStatus" class="swal2-select" ${lockedStudent ? 'disabled' : ''}><option ${row.status==='Activo'?'selected':''}>Activo</option><option ${row.status==='Inactivo'?'selected':''}>Inactivo</option><option ${row.status==='Pendiente'?'selected':''}>Pendiente</option></select></label>
       <label><span>DNI</span><input id="editDni" class="swal2-input" value="${escapeHtml(row.dni || '')}"></label>
@@ -1390,11 +1409,21 @@ async function editUserRecord(row) {
       if (role === 'Alumno' && (!document.getElementById('editCourse').value || !document.getElementById('editDivision').value)) return Swal.showValidationMessage('Para alumnos, Curso y División son obligatorios');
       const fileData = await readFileAsDataUrl(document.getElementById('editAvatarFile').files?.[0]);
       const avatarValue = fileData || document.getElementById('editAvatar').value.trim() || row.avatar_url || './assets/avatar-default.svg';
-      return { name: document.getElementById('editName').value.trim(), role, status: lockedStudent ? (row.status || 'Activo') : document.getElementById('editStatus').value, dni: document.getElementById('editDni').value.trim(), whatsapp: document.getElementById('editWhatsapp').value.trim(), birth_date: document.getElementById('editBirthDate').value || null, title: role === 'Alumno' ? null : document.getElementById('editTitle').value.trim(), student_course_name: role === 'Alumno' ? document.getElementById('editCourse').value : null, student_division_name: role === 'Alumno' ? document.getElementById('editDivision').value : null, avatar_url: avatarValue };
+      const newEmail = document.getElementById('editEmail').value.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) return Swal.showValidationMessage('Ingresá un email válido');
+      return { email: newEmail, name: document.getElementById('editName').value.trim(), role, status: lockedStudent ? (row.status || 'Activo') : document.getElementById('editStatus').value, dni: document.getElementById('editDni').value.trim(), whatsapp: document.getElementById('editWhatsapp').value.trim(), birth_date: document.getElementById('editBirthDate').value || null, title: role === 'Alumno' ? null : document.getElementById('editTitle').value.trim(), student_course_name: role === 'Alumno' ? document.getElementById('editCourse').value : null, student_division_name: role === 'Alumno' ? document.getElementById('editDivision').value : null, avatar_url: avatarValue };
     }
   });
   if (!result.isConfirmed) return;
-  try { if (window.sb?.enabled) await window.sb.updateProfileFull(row.id, result.value); Object.assign(row, result.value); if (String(row.id) === String(state.user?.id)) Object.assign(state.user, result.value, { course: result.value.student_course_name || state.user.course, division: result.value.student_division_name || state.user.division }); await refreshSupabaseData(); if (String(row.id) === String(state.user?.id)) { const fresh = state.users.find(u => String(u.id) === String(row.id)); if (fresh) state.user = { ...state.user, ...fresh, role: state.user.role }; } renderView(); showToast('Usuario actualizado'); }
+  try {
+    if (window.sb?.enabled) {
+      // Primero guardar el resto del perfil; Auth solo se modifica mediante función administrativa.
+      await window.sb.updateProfileFull(row.id, result.value);
+      if (String(result.value.email || '').toLowerCase() !== String(row.email || '').toLowerCase()) {
+        await window.sb.adminUserEmails('update', row.id, result.value.email);
+      }
+    }
+    Object.assign(row, result.value); if (String(row.id) === String(state.user?.id)) Object.assign(state.user, result.value, { course: result.value.student_course_name || state.user.course, division: result.value.student_division_name || state.user.division }); await refreshSupabaseData(); if (String(row.id) === String(state.user?.id)) { const fresh = state.users.find(u => String(u.id) === String(row.id)); if (fresh) state.user = { ...state.user, ...fresh, role: state.user.role }; } renderView(); showToast('Usuario actualizado'); }
   catch (error) { Swal.fire({ icon:'error', title:'No se pudo actualizar', text:error.message }); }
 }
 
@@ -1429,6 +1458,10 @@ function attachViewEvents() {
   appContent.querySelectorAll('.notification-select').forEach(btn => btn.addEventListener('click', () => selectNotification(btn.dataset.id)));
   appContent.querySelectorAll('[data-import]').forEach(btn => btn.addEventListener('click', () => openImport(btn.dataset.import)));
   appContent.querySelectorAll('[data-export]').forEach(btn => btn.addEventListener('click', () => triggerDownload(`${btn.dataset.export}.csv`, csvFromRows(dataByModule(btn.dataset.export)))));
+  document.getElementById('inventoryGroupsBtn')?.addEventListener('click', openInventoryGroups);
+  appContent.querySelectorAll('[data-user-email-menu]').forEach(b => b.addEventListener('click', () => openUserEmailMenu(b.dataset.userEmailMenu)));
+  document.getElementById('inventoryExportFiltered')?.addEventListener('click', () => exportInventoryDialog(false));
+  document.getElementById('inventoryExportAll')?.addEventListener('click', () => exportInventoryDialog(true));
   appContent.querySelectorAll('[data-action][data-type][data-id]').forEach(btn => btn.addEventListener('click', () => handleTableAction(btn.dataset.type, btn.dataset.action, btn.dataset.id)));
   document.getElementById('newRoleBtn')?.addEventListener('click', () => openRoleForm());
   appContent.querySelectorAll('[data-role-action][data-id]').forEach(btn => btn.addEventListener('click', () => handleRoleAction(btn.dataset.roleAction, btn.dataset.id)));
@@ -1598,6 +1631,24 @@ async function refreshSupabaseData() {
     }
     if (Array.isArray(users) && users.length) state.users = users;
     if (Array.isArray(inventory)) state.inventory = dedupeInventoryRows(inventory);
+    if(window.sb?.enabled && Array.isArray(inventory)){
+      const db=window.sb.client;
+      const [{data:groups,error:groupErr},{data:members,error:memberErr}]=await Promise.all([
+        db.from('inventory_groups').select('id,name,description,color,created_at').order('name'),
+        db.from('inventory_group_members').select('group_id,asset_id')
+      ]);
+      if(groupErr||memberErr){console.warn('Agrupaciones no disponibles:',groupErr||memberErr);state.inventoryGroupRows=[];}
+      else {
+        const byId=new Map(),byGroup=new Map();
+        for(const m of members||[]){byId.set(String(m.asset_id),m.group_id);if(!byGroup.has(m.group_id))byGroup.set(m.group_id,[]);byGroup.get(m.group_id).push(m.asset_id)}
+        const groupMap=new Map((groups||[]).map(g=>[g.id,g]));
+        state.inventory.forEach(a=>{a.group_name=groupMap.get(byId.get(String(a.id)))?.name||''});
+        state.inventoryGroupRows=(groups||[]).map(g=>{
+          const components=(byGroup.get(g.id)||[]).map(id=>state.inventory.find(a=>String(a.id)===String(id))).filter(Boolean);
+          return {id:'group:'+g.id,group_id:g.id,is_group:true,color:g.color||'#8b5cf6',code:'GRUPO',item:g.name,type:'Agrupación',brand:'—',supplier:'—',serial:'—',barcode:'—',status:components.length && components.every(a=>a.status==='Disponible')?'Disponible':'En mantenimiento',condition:'—',location:'Agrupación virtual',location_detail:'—',zone:'—',description:g.description||'',component_count:components.length,components};
+        });
+      }
+    }
     setupInventoryRealtime();
     if (Array.isArray(teams) && teams.length) state.teams = teams;
     if (Array.isArray(loans) && loans.length) state.loans = loans;
@@ -3299,3 +3350,177 @@ window.markNotificationsReadState = markNotificationsReadState;
     setTimeout(() => showPwaOfferV54(false), 1600);
   }, { once:true });
 })();
+
+// ISM v54: calendario por perfil, sin permisos adicionales sobre datos ajenos.
+const ismDashboardOriginalV54 = renderDashboard;
+renderDashboard = function() { return ismDashboardOriginalV54() + ismCalendarMarkup(); };
+const ismRenderViewOriginalV54 = renderView;
+renderView = function() { ismRenderViewOriginalV54(); if (state.currentView === 'dashboard') ismCalendarBind(); };
+
+function ismCalendarEvents() {
+  const role = state.user?.role;
+  const self = String(state.user?.id || '');
+  const visibleLoans = (state.loans || []).filter(l => role === 'administrator' || [l.requester_id,l.teacher_profile_id].some(id => String(id || '') === self));
+  const loans = visibleLoans.filter(l => /^\d{4}-\d{2}-\d{2}/.test(l.date || '')).map(l => ({
+    date: l.date.slice(0,10), type:'loan', title:`Préstamo: ${l.requester || 'Solicitud'} (${l.status || 'Pendiente'})`,
+    detail:`${l.from || ''} - ${l.to || ''} · ${(l.items || []).join(', ')}`, loan:l
+  }));
+  const tickets = (state.supportTickets || []).filter(t => role === 'administrator' || [t.requester_profile_id,t.requester_id,t.created_by].some(id => String(id || '') === self)).map(t => ({
+    date: String(t.scheduled_at || t.due_at || t.created_at || '').slice(0,10), type:'ticket',
+    title:`Ticket ${t.ticket_number || ''}: ${t.incident_type || 'Soporte'}`, detail:t.status || ''
+  })).filter(t => /^\d{4}-\d{2}-\d{2}/.test(t.date));
+  return [...loans,...tickets];
+}
+let ismCalendarMonthV54 = new Date(new Date().getFullYear(),new Date().getMonth(),1);
+function ismCalendarMarkup() {
+  const y=ismCalendarMonthV54.getFullYear(),m=ismCalendarMonthV54.getMonth();
+  const first=(new Date(y,m,1).getDay()+6)%7, days=new Date(y,m+1,0).getDate();
+  const events=ismCalendarEvents();
+  const dayCells=Array.from({length:first},()=>'<span class="ism-cal-empty"></span>');
+  for(let d=1;d<=days;d++) {
+    const date=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const es=events.filter(e=>e.date===date);
+    dayCells.push(`<button type="button" class="ism-cal-day" data-cal-date="${date}" aria-label="Eventos del ${date}"><strong>${d}</strong><span class="ism-cal-dots">${es.slice(0,5).map(e=>`<i class="ism-cal-dot ${e.type}"></i>`).join('')}</span></button>`);
+  }
+  return `<section class="card glass ism-cal-wrap"><div class="section-header"><div><h3>Agenda institucional</h3><p class="muted">Eventos visibles según tu perfil. Préstamos en violeta y tickets en naranja.</p></div><div class="toolbar"><button class="btn btn-secondary btn-sm" id="ismCalPrev">←</button><strong>${ismCalendarMonthV54.toLocaleDateString('es-AR',{month:'long',year:'numeric'})}</strong><button class="btn btn-secondary btn-sm" id="ismCalNext">→</button></div></div><div class="ism-cal-grid">${['L','M','M','J','V','S','D'].map(x=>`<span class="ism-cal-weekday">${x}</span>`).join('')}${dayCells.join('')}</div><div class="ism-cal-legend"><span><i class="ism-cal-dot loan"></i> Préstamos</span><span><i class="ism-cal-dot ticket"></i> Tickets</span></div></section>`;
+}
+function ismCalendarBind() {
+  const move = n => {ismCalendarMonthV54=new Date(ismCalendarMonthV54.getFullYear(),ismCalendarMonthV54.getMonth()+n,1);renderView();};
+  document.getElementById('ismCalPrev')?.addEventListener('click',()=>move(-1));
+  document.getElementById('ismCalNext')?.addEventListener('click',()=>move(1));
+  document.querySelectorAll('[data-cal-date]').forEach(b=>b.addEventListener('click',()=>{
+    const es=ismCalendarEvents().filter(e=>e.date===b.dataset.calDate);
+    Swal.fire({title:`Agenda · ${b.dataset.calDate.split('-').reverse().join('/')}`,html:es.length?es.map(e=>`<p style="text-align:left"><b>${escapeHtml(e.title)}</b><br><small>${escapeHtml(e.detail)}</small></p>`).join(''):'Sin eventos registrados en esta fecha.',confirmButtonText:'Cerrar'});
+  }));
+}
+
+function ismInventoryExportRows(all) {
+  const rows=all ? (state.inventory || []) : getFilteredInventory();
+  return rows.map(r=>({Código:r.code||'',Artículo:r.item||'',Tipo:r.type||'',Marca:r.brand||'',Proveedor:r.supplier||'',Serie:r.serial||'',Barcode:r.barcode||'',Estado:r.status||'',Condición:r.condition||'',Locación:r.location_detail||'',Zona:r.zone||'',Ubicación:r.location||''}));
+}
+async function ismLoadXlsx() {
+  if(window.XLSX) return;
+  await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';s.onload=resolve;s.onerror=()=>reject(new Error('No se pudo cargar la biblioteca Excel. Verificá tu conexión.'));document.head.appendChild(s);});
+}
+async function exportInventoryDialog(all=false) {
+  const rows=ismInventoryExportRows(all);
+  if(!rows.length) return Swal.fire({icon:'info',title:'Sin registros',text:'No hay resultados para exportar.'});
+  const result=await Swal.fire({title:all?'Exportar inventario completo':'Exportar inventario filtrado',text:`${rows.length} registros · Se exportan todas las coincidencias, no solo la página actual.`,input:'select',inputOptions:{csv:'CSV',xlsx:'Excel (.xlsx)',pdf:'PDF (imprimir / guardar como PDF)'},inputValue:'xlsx',showCancelButton:true,confirmButtonText:'Exportar',cancelButtonText:'Cancelar'});
+  if(!result.isConfirmed) return;
+  const name=`ISM_inventario_${all?'completo':'filtrado'}_${new Date().toISOString().slice(0,10)}`;
+  try {
+    if(result.value==='csv') return triggerDownload(name+'.csv',csvFromRows(rows));
+    if(result.value==='xlsx') {await ismLoadXlsx();const ws=XLSX.utils.json_to_sheet(rows);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Inventario');XLSX.writeFile(wb,name+'.xlsx');return;}
+    const headers=Object.keys(rows[0]);const popup=window.open('','_blank');
+    if(!popup) throw new Error('Permití ventanas emergentes para imprimir el PDF.');
+    const html=`<!doctype html><html><head><meta charset="utf-8"><title>${name}</title><style>body{font:11px Arial;margin:20px}h2{font-size:16px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #aaa;padding:4px;overflow-wrap:anywhere}th{background:#eee}@page{size:landscape;margin:10mm}</style></head><body><h2>ISM ROBOSOFT · Inventario ${all?'completo':'filtrado'}</h2><p>${rows.length} registros</p><table><thead><tr>${headers.map(h=>`<th>${escapeHtml(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${headers.map(h=>`<td>${escapeHtml(String(r[h]??''))}</td>`).join('')}</tr>`).join('')}</tbody></table></body></html>`;
+    popup.document.write(html);popup.document.close();popup.focus();setTimeout(()=>popup.print(),400);
+  }catch(e){Swal.fire({icon:'error',title:'No se pudo exportar',text:e.message});}
+}
+
+// Generación de enlace Google Calendar sin permisos OAuth adicionales.
+function ismGoogleCalendarLoanUrl(loan) {
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(loan.date||'')) return null;
+  const hhmm=s=>/^\d{1,2}:\d{2}/.test(s||'')?s.slice(0,5).replace(':',''):'0900';
+  const d=loan.date.replaceAll('-','');
+  const start=d+'T'+hhmm(loan.from)+'00',end=d+'T'+hhmm(loan.to)+'00';
+  const p=new URLSearchParams({action:'TEMPLATE',text:'ISM ROBOSOFT · Préstamo aprobado',dates:start+'/'+end,ctz:'America/Argentina/Tucuman',details:`Docente: ${loan.requester||''}\nMateriales: ${(loan.items||[]).join(', ')}\n${loan.notes||''}`});
+  return 'https://calendar.google.com/calendar/render?'+p;
+}
+const ismUpdateLoanStatusOriginalV54=updateLoanStatus;
+updateLoanStatus=async function(id,status){
+  await ismUpdateLoanStatusOriginalV54(id,status);
+  if(status!=='Aprobado')return;
+  const loan=(state.loans||[]).find(l=>String(l.id)===String(id));
+  const url=loan&&ismGoogleCalendarLoanUrl(loan);
+  if(url) Swal.fire({icon:'success',title:'Préstamo aprobado',text:'Podés abrir Google Calendar para agendar el préstamo. El envío automático por correo requiere configurar la función de notificaciones.',showCancelButton:true,confirmButtonText:'Abrir Google Calendar',cancelButtonText:'Cerrar'}).then(r=>{if(r.isConfirmed)window.open(url,'_blank','noopener,noreferrer');});
+};
+
+// v56: Agrupaciones persistentes, con asignación exclusiva por activo.
+// v58: Gestor de agrupaciones con selección masiva y búsqueda por múltiples series.
+async function deleteInventoryGroup(groupId){
+  const db=window.sb.client;
+  const {data:g,error:ge}=await db.from('inventory_groups').select('name').eq('id',groupId).single();
+  if(ge)throw ge;
+  const confirm=await Swal.fire({title:'Eliminar agrupación',text:`¿Eliminar «${g.name}»? Los insumos originales permanecerán en el inventario.`,icon:'warning',showCancelButton:true,confirmButtonText:'Eliminar agrupación',confirmButtonColor:'#dc2626'});
+  if(!confirm.isConfirmed)return;
+  const {error}=await db.from('inventory_groups').delete().eq('id',groupId);
+  if(error)throw error;
+  await refreshSupabaseData();renderView();showToast('Agrupación eliminada');
+}
+async function openInventoryGroups(){
+  if(!window.sb?.enabled)return Swal.fire('Supabase requerido','Conectá Supabase.','warning');
+  try{
+    const db=window.sb.client;
+    const {data:groups,error}=await db.from('inventory_groups').select('id,name,description,color').order('name');
+    if(error)throw error;
+    const {isConfirmed}=await Swal.fire({title:'Agrupaciones de insumos',width:820,html:`<div class="ism-groups-list">${(groups||[]).map(g=>`<div class="ism-group-card" style="--group-accent:${escapeAttr(g.color||'#8b5cf6')}"><div class="ism-group-card-title"><span class="ism-group-dot"></span><strong>${escapeHtml(g.name)}</strong></div><p>${escapeHtml(g.description||'Sin descripción')}</p><div class="ism-group-card-actions"><button type="button" class="btn btn-secondary btn-sm" data-grp-edit="${escapeAttr(g.id)}">Administrar insumos</button><button type="button" class="btn btn-secondary btn-sm" data-grp-delete="${escapeAttr(g.id)}" title="Eliminar agrupación">${icons.trash} Eliminar</button></div></div>`).join('')||'<p>No hay agrupaciones creadas.</p>'}</div>`,showCancelButton:true,confirmButtonText:'Crear agrupación',cancelButtonText:'Cerrar',didOpen:()=>{
+      document.querySelectorAll('[data-grp-edit]').forEach(b=>b.addEventListener('click',()=>{Swal.close();editInventoryGroup(b.dataset.grpEdit)}));
+      document.querySelectorAll('[data-grp-delete]').forEach(b=>b.addEventListener('click',async()=>{const id=b.dataset.grpDelete;Swal.close();try{await deleteInventoryGroup(id)}catch(e){Swal.fire('Error',e.message,'error')}}));
+    }});
+    if(!isConfirmed)return;
+    const {value:v}=await Swal.fire({title:'Nueva agrupación',html:'<input id="group-name" class="swal2-input" placeholder="Ej.: Carrito STEAM"><textarea id="group-description" class="swal2-textarea" placeholder="Descripción"></textarea><label class="ism-color-picker">Color identificador <input type="color" id="group-color" value="#8b5cf6"></label>',showCancelButton:true,preConfirm:()=>({name:document.getElementById('group-name').value.trim(),description:document.getElementById('group-description').value.trim(),color:document.getElementById('group-color').value})});
+    if(!v)return;if(!v.name)return Swal.fire('Ingresá un nombre');
+    const {data,error:ce}=await db.from('inventory_groups').insert(v).select('id').single();if(ce)throw ce;await editInventoryGroup(data.id);
+  }catch(e){Swal.fire('Error',e.message||String(e),'error')}
+}
+async function editInventoryGroup(groupId){
+  try{
+    const db=window.sb.client;
+    const [{data:group,error:ge},{data:members,error:me}]=await Promise.all([db.from('inventory_groups').select('*').eq('id',groupId).single(),db.from('inventory_group_members').select('asset_id,inventory_assets(asset_code,serial_number)').eq('group_id',groupId)]);
+    if(ge||me)throw(ge||me);
+    const current=new Set((members||[]).map(m=>String(m.asset_id)));
+    const otherGroupAssets=new Set((state.inventory||[]).filter(a=>a.group_name && a.group_name!==group.name).map(a=>String(a.id)));
+    const allAssets=(state.inventory||[]).filter(a=>!otherGroupAssets.has(String(a.id)));
+    const selection=new Set(current);
+    const label=a=>`${a.code||''} · ${a.item||''} · ${a.serial||'Sin serie'}`;
+    const {value:choice}=await Swal.fire({title:'Administrar · '+group.name,width:960,customClass:{popup:'ism-group-editor'},html:`<div class="ism-group-editor-body"><div class="ism-group-editor-tools"><label>Color <input type="color" id="group-edit-color" value="${escapeAttr(group.color||'#8b5cf6')}"></label><span id="group-counter"></span></div><label class="ism-group-label" for="group-search">Buscar por nombre, código o varias series separadas por comas</label><textarea id="group-search" class="swal2-textarea ism-group-search" placeholder="AA6842064332, AA6842017063, AA5842052095"></textarea><div class="ism-group-editor-tools"><button type="button" class="btn btn-secondary btn-sm" id="group-select-visible">Seleccionar resultados</button><button type="button" class="btn btn-secondary btn-sm" id="group-select-all">Seleccionar todos</button><button type="button" class="btn btn-secondary btn-sm" id="group-remove-selected">Quitar selección</button><button type="button" class="btn btn-secondary btn-sm" id="group-clear-search">Limpiar búsqueda</button></div><div id="group-match-status" class="muted small"></div><div class="ism-group-asset-list"><table class="table"><thead><tr><th><input type="checkbox" id="group-toggle-visible" title="Seleccionar/deseleccionar visibles"></th><th>Código</th><th>Insumo</th><th>N° serie</th><th>Acciones</th></tr></thead><tbody id="group-asset-rows"></tbody></table></div><p class="muted small">Quitar un insumo del grupo no elimina el activo de Inventario.</p></div>`,showCancelButton:true,confirmButtonText:'Guardar cambios',cancelButtonText:'Cancelar',didOpen:()=>{
+      const inp=document.getElementById('group-search'),tbody=document.getElementById('group-asset-rows'),counter=document.getElementById('group-counter'),status=document.getElementById('group-match-status');
+      const filtered=()=>{const q=inp.value.trim().toLowerCase();if(!q)return allAssets;const terms=q.split(/[,;\n]+/).map(t=>t.trim()).filter(Boolean);return allAssets.filter(a=>terms.some(t=>label(a).toLowerCase().includes(t)))};
+      const draw=()=>{const visible=filtered();counter.textContent=`${selection.size} seleccionados · ${allAssets.length} disponibles`;status.textContent=`${visible.length} coincidencias`;tbody.innerHTML=visible.slice(0,500).map(a=>`<tr class="${selection.has(String(a.id))?'ism-selected-row':''}"><td><input type="checkbox" class="ism-group-check" data-id="${escapeAttr(a.id)}" ${selection.has(String(a.id))?'checked':''}></td><td>${escapeHtml(a.code||'—')}</td><td>${escapeHtml(a.item||'—')}</td><td>${escapeHtml(a.serial||'—')}</td><td><button type="button" class="btn btn-secondary btn-sm ism-group-remove" data-id="${escapeAttr(a.id)}" title="Quitar del grupo">${icons.trash}</button></td></tr>`).join('')||'<tr><td colspan="5">Sin coincidencias</td></tr>';const toggle=document.getElementById('group-toggle-visible');toggle.checked=visible.length>0&&visible.every(a=>selection.has(String(a.id)));};
+      tbody.addEventListener('change',e=>{const cb=e.target.closest('.ism-group-check');if(!cb)return;cb.checked?selection.add(cb.dataset.id):selection.delete(cb.dataset.id);draw()});
+      tbody.addEventListener('click',e=>{const b=e.target.closest('.ism-group-remove');if(!b)return;selection.delete(b.dataset.id);draw()});
+      document.getElementById('group-toggle-visible').addEventListener('change',e=>{filtered().forEach(a=>e.target.checked?selection.add(String(a.id)):selection.delete(String(a.id)));draw()});
+      document.getElementById('group-select-visible').onclick=()=>{filtered().forEach(a=>selection.add(String(a.id)));draw()};
+      document.getElementById('group-select-all').onclick=()=>{allAssets.forEach(a=>selection.add(String(a.id)));draw()};
+      document.getElementById('group-remove-selected').onclick=()=>{selection.clear();draw()};
+      document.getElementById('group-clear-search').onclick=()=>{inp.value='';draw()};inp.addEventListener('input',draw);draw();
+      window.__ismGroupSelection=selection;
+    },preConfirm:()=>({color:document.getElementById('group-edit-color').value,selected:[...window.__ismGroupSelection]})});
+    delete window.__ismGroupSelection;
+    if(!choice)return;
+    const next=new Set(choice.selected),remove=[...current].filter(id=>!next.has(id)),add=[...next].filter(id=>!current.has(id));
+    const {error:ce}=await db.from('inventory_groups').update({color:choice.color}).eq('id',groupId);if(ce)throw ce;
+    if(remove.length){const {error}=await db.from('inventory_group_members').delete().eq('group_id',groupId).in('asset_id',remove);if(error)throw error}
+    if(add.length){const {error}=await db.from('inventory_group_members').insert(add.map(asset_id=>({group_id:groupId,asset_id})));if(error)throw error}
+    await refreshSupabaseData();renderView();showToast('Agrupación actualizada');
+  }catch(e){Swal.fire('Error',e.message||String(e),'error')}
+}
+async function openUserEmailMenu(id){
+  const u=state.users.find(x=>String(x.id)===String(id));if(!u)return;
+  const {value:kind}=await Swal.fire({title:'Enviar correo a '+u.name,input:'select',inputOptions:{welcome:'Bienvenida',registration:'Nuevo registro / invitación',recovery:'Recuperación de contraseña',loan_reminder:'Recordatorio de préstamo'},inputPlaceholder:'Seleccioná el correo',showCancelButton:true,confirmButtonText:'Continuar'});
+  if(!kind)return;
+  if(!window.sb?.enabled)return Swal.fire('Supabase requerido');
+  const {isConfirmed}=await Swal.fire({title:'Confirmar envío',text:'Se enviará a '+(u.email||'la dirección registrada en Supabase Auth'),icon:'question',showCancelButton:true,confirmButtonText:'Enviar'});if(!isConfirmed)return;
+  try{const {data,error}=await window.sb.client.functions.invoke('ism-user-mail',{body:{user_id:id,kind}});if(error){let detail=error.message;try{if(error.context)detail=(await error.context.json())?.error||detail}catch{}throw Error(detail)}if(!data?.ok)throw Error(data?.error||'El servidor no confirmó el envío');Swal.fire('Enviado','Correo solicitado correctamente.','success')}
+  catch(e){Swal.fire('Error de envío',e.message||String(e),'error')}
+}
+
+// v57: acciones delegadas para agrupaciones virtuales en inventario.
+if(!window.__ismGroupActionsV57){
+  window.__ismGroupActionsV57=true;
+  document.addEventListener('click',e=>{
+    const view=e.target.closest('[data-ism-group-view]');
+    if(view){e.preventDefault();viewInventoryGroup(view.dataset.ismGroupView);return;}
+    const edit=e.target.closest('[data-ism-group-edit]');
+    if(edit){e.preventDefault();editInventoryGroup(edit.dataset.ismGroupEdit);return;}
+    const del=e.target.closest('[data-ism-group-delete]');
+    if(del){e.preventDefault();deleteInventoryGroup(del.dataset.ismGroupDelete).catch(err=>Swal.fire('Error',err.message,'error'));}
+  });
+}
+async function viewInventoryGroup(groupId){
+  const row=(state.inventoryGroupRows||[]).find(g=>String(g.group_id)===String(groupId));
+  if(!row)return Swal.fire('Agrupación no encontrada','Actualizá el inventario.','warning');
+  const list=row.components.map((a,i)=>`<tr><td>${i+1}</td><td>${escapeHtml(a.code||'-')}</td><td>${escapeHtml(a.item||'-')}</td><td>${escapeHtml(a.serial||'-')}</td><td>${escapeHtml(a.status||'-')}</td></tr>`).join('');
+  return Swal.fire({title:'Detalle de inventario · '+row.item,width:900,html:`<div style="text-align:left"><p><strong>Tipo:</strong> Agrupación de insumos</p><p><strong>Nombre:</strong> ${escapeHtml(row.item)}</p><p><strong>Descripción:</strong> ${escapeHtml(row.description||'-')}</p><p><strong>Color identificador:</strong> <span style="display:inline-block;width:15px;height:15px;background:${escapeAttr(row.color)};border-radius:4px;vertical-align:middle"></span> ${escapeHtml(row.color)}</p><p><strong>Cantidad de insumos:</strong> ${row.component_count}</p><div style="overflow:auto;max-height:48vh"><table class="table"><thead><tr><th>#</th><th>Código</th><th>Insumo</th><th>Serie</th><th>Estado</th></tr></thead><tbody>${list||'<tr><td colspan="5">Sin componentes</td></tr>'}</tbody></table></div></div>`,confirmButtonText:'Cerrar'});
+}
